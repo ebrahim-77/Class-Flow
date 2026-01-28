@@ -1,0 +1,343 @@
+const express = require('express');
+const router = express.Router();
+const Booking = require('../models/Booking');
+const Room = require('../models/Room');
+const { authenticate, authorize } = require('../middleware/auth');
+const { validateBooking } = require('../middleware/validators');
+
+// Helper function to check booking conflict
+const checkBookingConflict = async (roomId, date, startTime, endTime, excludeId = null) => {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const filter = {
+    roomId,
+    date: {
+      $gte: startOfDay,
+      $lte: endOfDay
+    },
+    status: { $in: ['pending', 'approved'] }
+  };
+
+  if (excludeId) {
+    filter._id = { $ne: excludeId };
+  }
+
+  const existingBookings = await Booking.find(filter);
+
+  for (const booking of existingBookings) {
+    // Check for time overlap
+    if (
+      (startTime >= booking.startTime && startTime < booking.endTime) ||
+      (endTime > booking.startTime && endTime <= booking.endTime) ||
+      (startTime <= booking.startTime && endTime >= booking.endTime)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+// @route   POST /api/bookings
+// @desc    Create new booking request
+// @access  Private (Student/Teacher)
+router.post('/', authenticate, authorize('student', 'teacher'), validateBooking, async (req, res, next) => {
+  try {
+    const { roomId, date, startTime, endTime, purpose } = req.body;
+
+    // Verify room exists
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: 'Room not found'
+      });
+    }
+
+    // Check for conflicts
+    const hasConflict = await checkBookingConflict(roomId, date, startTime, endTime);
+    if (hasConflict) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking conflict: Room is already booked for this time slot'
+      });
+    }
+
+    // Auto-approve teacher bookings, students need approval
+    const status = req.user.role === 'teacher' ? 'approved' : 'pending';
+
+    const booking = await Booking.create({
+      userId: req.user.id,
+      userName: req.user.name,
+      userEmail: req.user.email,
+      roomId,
+      roomName: room.name,
+      date,
+      startTime,
+      endTime,
+      purpose,
+      status,
+      // If teacher, set reviewed fields immediately
+      ...(req.user.role === 'teacher' && {
+        reviewedAt: Date.now(),
+        reviewedBy: req.user.id
+      })
+    });
+
+    res.status(201).json({
+      success: true,
+      booking
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   GET /api/bookings
+// @desc    Get all bookings (for timetable and admin)
+// @access  Private
+router.get('/', authenticate, async (req, res, next) => {
+  try {
+    const { status, startDate, endDate } = req.query;
+    const filter = {};
+
+    // Admin sees all, others see only approved bookings for timetable
+    if (req.user.role !== 'admin') {
+      filter.status = 'approved';
+    } else if (status) {
+      filter.status = status;
+    }
+
+    // Date range filter for timetable view
+    if (startDate && endDate) {
+      filter.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    const bookings = await Booking.find(filter)
+      .populate('userId', 'name email role')
+      .populate('roomId', 'name building capacity')
+      .sort({ date: 1, startTime: 1 });
+
+    res.json({
+      success: true,
+      count: bookings.length,
+      bookings
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   GET /api/bookings/my-bookings
+// @desc    Get current user's bookings
+// @access  Private
+router.get('/my-bookings', authenticate, async (req, res, next) => {
+  try {
+    const bookings = await Booking.find({ userId: req.user.id })
+      .populate('roomId', 'name building capacity')
+      .sort({ date: -1 });
+
+    res.json({
+      success: true,
+      count: bookings.length,
+      bookings
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   GET /api/bookings/:id
+// @desc    Get booking by ID
+// @access  Private
+router.get('/:id', authenticate, async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('userId', 'name email')
+      .populate('roomId', 'name building capacity');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Users can only view their own bookings unless admin
+    if (booking.userId._id.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this booking'
+      });
+    }
+
+    res.json({
+      success: true,
+      booking
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   PUT /api/bookings/:id/approve
+// @desc    Approve booking (ONLY for student bookings)
+// @access  Private (Admin only)
+router.put('/:id/approve', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id).populate('userId', 'role');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Prevent approving teacher bookings (they should already be approved)
+    if (booking.userId.role === 'teacher') {
+      return res.status(400).json({
+        success: false,
+        message: 'Teacher bookings are automatically approved'
+      });
+    }
+
+    if (booking.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking has already been reviewed'
+      });
+    }
+
+    booking.status = 'approved';
+    booking.reviewedAt = Date.now();
+    booking.reviewedBy = req.user.id;
+    await booking.save();
+
+    res.json({
+      success: true,
+      booking
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   PUT /api/bookings/:id/reject
+// @desc    Reject booking (ONLY for student bookings)
+// @access  Private (Admin only)
+router.put('/:id/reject', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id).populate('userId', 'role');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Prevent rejecting teacher bookings
+    if (booking.userId.role === 'teacher') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot reject teacher bookings'
+      });
+    }
+
+    if (booking.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking has already been reviewed'
+      });
+    }
+
+    booking.status = 'rejected';
+    booking.reviewedAt = Date.now();
+    booking.reviewedBy = req.user.id;
+    await booking.save();
+
+    res.json({
+      success: true,
+      booking
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   PUT /api/bookings/:id/cancel
+// @desc    Cancel booking
+// @access  Private
+router.put('/:id/cancel', authenticate, async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Users can only cancel their own bookings
+    if (booking.userId.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to cancel this booking'
+      });
+    }
+
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking is already cancelled'
+      });
+    }
+
+    booking.status = 'cancelled';
+    await booking.save();
+
+    res.json({
+      success: true,
+      booking
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   GET /api/bookings/stats/summary
+// @desc    Get booking statistics
+// @access  Private (Admin)
+router.get('/stats/summary', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const pending = await Booking.countDocuments({ status: 'pending' });
+    const approved = await Booking.countDocuments({ status: 'approved' });
+    const rejected = await Booking.countDocuments({ status: 'rejected' });
+    const cancelled = await Booking.countDocuments({ status: 'cancelled' });
+    const total = pending + approved + rejected + cancelled;
+
+    res.json({
+      success: true,
+      stats: {
+        total,
+        pending,
+        approved,
+        rejected,
+        cancelled
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+module.exports = router;
