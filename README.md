@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ClassFlow - Complete Setup Guide
 
 Full-stack classroom management system with React frontend and Node.js backend.
@@ -240,3 +241,6 @@ For issues or questions:
 
 **ClassFlow** - Modern Classroom Management System
 Built with MERN Stack (MongoDB, Express, React, Node.js)
+=======
+# Class-Flow
+>>>>>>> f42605f83da9c93b07e2148b2fc890564ddd6b25
