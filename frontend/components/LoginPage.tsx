@@ -1,5 +1,5 @@
-import { Mail, Lock, ArrowRight, User } from 'lucide-react';
-import { useState } from 'react';
+import { Mail, Lock, ArrowRight, User, Camera, Loader2 } from 'lucide-react';
+import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import type { Page } from '../App';
 
@@ -15,6 +15,53 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Profile photo state
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file.');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image size must be less than 5MB.');
+      return;
+    }
+
+    setUploadingPhoto(true);
+    setError('');
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProfilePhoto(reader.result as string);
+      setUploadingPhoto(false);
+    };
+    reader.onerror = () => {
+      setError('Failed to read the image file.');
+      setUploadingPhoto(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const removePhoto = () => {
+    setProfilePhoto(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +71,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
     try {
       let success: boolean;
       if (isRegister) {
-        success = await register(name, email, password);
+        success = await register(name, email, password, profilePhoto || undefined);
       } else {
         success = await login(email, password);
       }
@@ -102,6 +149,61 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Profile Photo Upload (Register only) */}
+            {isRegister && (
+              <div className="flex flex-col items-center gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  aria-label="Upload profile photo"
+                />
+                
+                <div 
+                  className="relative cursor-pointer group"
+                  onClick={triggerFileInput}
+                >
+                  {profilePhoto ? (
+                    <img 
+                      src={profilePhoto} 
+                      alt="Profile preview"
+                      className="w-24 h-24 rounded-full object-cover border-4 border-slate-200"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-slate-100 border-4 border-slate-200 flex items-center justify-center">
+                      {uploadingPhoto ? (
+                        <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+                      ) : (
+                        <Camera className="w-8 h-8 text-slate-400" />
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Overlay on hover */}
+                  <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-sm text-slate-600">
+                    {profilePhoto ? 'Click to change photo' : 'Add profile photo (optional)'}
+                  </p>
+                  {profilePhoto && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); removePhoto(); }}
+                      className="text-sm text-red-500 hover:text-red-700 mt-1"
+                    >
+                      Remove photo
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Name Input (Register only) */}
             {isRegister && (
               <div>

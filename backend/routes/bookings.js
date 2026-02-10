@@ -1,19 +1,33 @@
 const express = require('express');
 const router = express.Router();
 const Booking = require('../models/Booking');
+const Schedule = require('../models/Schedule');
 const Room = require('../models/Room');
 const { authenticate, authorize } = require('../middleware/auth');
 const { validateBooking } = require('../middleware/validators');
 
-// Helper function to check booking conflict
-const checkBookingConflict = async (roomId, date, startTime, endTime, excludeId = null) => {
+// Helper function to check time overlap
+const hasTimeOverlap = (start1, end1, start2, end2) => {
+  return start1 < end2 && end1 > start2;
+};
+
+// Helper function to calculate duration in hours
+const calculateDuration = (startTime, endTime) => {
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+  return ((endHour * 60 + endMin) - (startHour * 60 + startMin)) / 60;
+};
+
+// Helper function to check booking conflict (against both bookings AND schedules)
+const checkBookingConflict = async (roomId, date, startTime, endTime, excludeBookingId = null) => {
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
   
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const filter = {
+  // Check existing bookings
+  const bookingFilter = {
     roomId,
     date: {
       $gte: startOfDay,
@@ -22,24 +36,114 @@ const checkBookingConflict = async (roomId, date, startTime, endTime, excludeId 
     status: { $in: ['pending', 'approved'] }
   };
 
-  if (excludeId) {
-    filter._id = { $ne: excludeId };
+  if (excludeBookingId) {
+    bookingFilter._id = { $ne: excludeBookingId };
   }
 
-  const existingBookings = await Booking.find(filter);
+  const existingBookings = await Booking.find(bookingFilter);
 
   for (const booking of existingBookings) {
-    // Check for time overlap
-    if (
-      (startTime >= booking.startTime && startTime < booking.endTime) ||
-      (endTime > booking.startTime && endTime <= booking.endTime) ||
-      (startTime <= booking.startTime && endTime >= booking.endTime)
-    ) {
-      return true;
+    if (hasTimeOverlap(startTime, endTime, booking.startTime, booking.endTime)) {
+      return { hasConflict: true, conflictType: 'booking', conflictWith: booking };
     }
   }
 
-  return false;
+  // Check existing schedules
+  const scheduleFilter = {
+    roomId,
+    date: {
+      $gte: startOfDay,
+      $lte: endOfDay
+    },
+    isActive: true
+  };
+
+  const existingSchedules = await Schedule.find(scheduleFilter);
+
+  for (const schedule of existingSchedules) {
+    if (hasTimeOverlap(startTime, endTime, schedule.startTime, schedule.endTime)) {
+      return { hasConflict: true, conflictType: 'schedule', conflictWith: schedule };
+    }
+  }
+
+  return { hasConflict: false, conflictType: null, conflictWith: null };
+};
+
+// Helper function to get all occupied slots for a room on a date
+const getOccupiedSlots = async (roomId, date, excludeBookingId = null) => {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const occupiedSlots = [];
+
+  // Get bookings
+  const bookingFilter = {
+    roomId,
+    date: { $gte: startOfDay, $lte: endOfDay },
+    status: { $in: ['pending', 'approved'] }
+  };
+  if (excludeBookingId) {
+    bookingFilter._id = { $ne: excludeBookingId };
+  }
+
+  const bookings = await Booking.find(bookingFilter);
+  bookings.forEach(b => occupiedSlots.push({ start: b.startTime, end: b.endTime }));
+
+  // Get schedules
+  const schedules = await Schedule.find({
+    roomId,
+    date: { $gte: startOfDay, $lte: endOfDay },
+    isActive: true
+  });
+  schedules.forEach(s => occupiedSlots.push({ start: s.startTime, end: s.endTime }));
+
+  return occupiedSlots.sort((a, b) => a.start.localeCompare(b.start));
+};
+
+// Helper function to find available time slots
+const findAvailableSlots = async (roomId, date, requestedDuration, excludeBookingId = null) => {
+  const occupiedSlots = await getOccupiedSlots(roomId, date, excludeBookingId);
+  
+  // Working hours: 8:00 AM to 5:00 PM
+  const workStart = '08:00';
+  const workEnd = '17:00';
+  
+  // Generate all possible slots (30-minute increments)
+  const allSlots = [];
+  for (let hour = 8; hour < 17; hour++) {
+    allSlots.push(`${hour.toString().padStart(2, '0')}:00`);
+    allSlots.push(`${hour.toString().padStart(2, '0')}:30`);
+  }
+  allSlots.push('17:00');
+
+  const availableSlots = [];
+  const slotsNeeded = Math.ceil(requestedDuration * 2); // 2 slots per hour
+
+  for (let i = 0; i <= allSlots.length - slotsNeeded; i++) {
+    const slotStart = allSlots[i];
+    const slotEnd = allSlots[i + slotsNeeded];
+    
+    if (!slotEnd || slotEnd > workEnd) continue;
+
+    // Check if this slot conflicts with any occupied slot
+    let isAvailable = true;
+    for (const occupied of occupiedSlots) {
+      if (hasTimeOverlap(slotStart, slotEnd, occupied.start, occupied.end)) {
+        isAvailable = false;
+        break;
+      }
+    }
+
+    if (isAvailable) {
+      availableSlots.push({ startTime: slotStart, endTime: slotEnd });
+      if (availableSlots.length >= 5) break; // Limit to 5 suggestions
+    }
+  }
+
+  return availableSlots;
 };
 
 // @route   POST /api/bookings
@@ -58,12 +162,20 @@ router.post('/', authenticate, authorize('student', 'teacher'), validateBooking,
       });
     }
 
-    // Check for conflicts
-    const hasConflict = await checkBookingConflict(roomId, date, startTime, endTime);
+    // Check for conflicts (against both bookings and schedules)
+    const { hasConflict, conflictType } = await checkBookingConflict(roomId, date, startTime, endTime);
     if (hasConflict) {
+      // Calculate duration and find alternative slots
+      const duration = calculateDuration(startTime, endTime);
+      const suggestedSlots = await findAvailableSlots(roomId, date, duration);
+      
       return res.status(400).json({
         success: false,
-        message: 'Booking conflict: Room is already booked for this time slot'
+        message: `This room is already booked at the selected time${conflictType === 'schedule' ? ' (scheduled class)' : ''}.`,
+        hasConflict: true,
+        conflictType,
+        suggestedSlots,
+        noSlotsAvailable: suggestedSlots.length === 0
       });
     }
 
@@ -91,6 +203,52 @@ router.post('/', authenticate, authorize('student', 'teacher'), validateBooking,
     res.status(201).json({
       success: true,
       booking
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   POST /api/bookings/check-conflict
+// @desc    Check for booking conflicts and suggest available slots
+// @access  Private (Student/Teacher)
+router.post('/check-conflict', authenticate, authorize('student', 'teacher'), async (req, res, next) => {
+  try {
+    const { roomId, date, startTime, endTime, excludeId } = req.body;
+
+    if (!roomId || !date || !startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'Room, date, start time, and end time are required'
+      });
+    }
+
+    // Validate end time is after start time
+    if (endTime <= startTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'End time must be after start time'
+      });
+    }
+
+    const { hasConflict, conflictType } = await checkBookingConflict(roomId, date, startTime, endTime, excludeId);
+    
+    let suggestedSlots = [];
+    let noSlotsAvailable = false;
+    
+    if (hasConflict) {
+      // Calculate duration and find alternative slots
+      const duration = calculateDuration(startTime, endTime);
+      suggestedSlots = await findAvailableSlots(roomId, date, duration, excludeId);
+      noSlotsAvailable = suggestedSlots.length === 0;
+    }
+
+    res.json({
+      success: true,
+      hasConflict,
+      conflictType,
+      suggestedSlots,
+      noSlotsAvailable
     });
   } catch (error) {
     next(error);

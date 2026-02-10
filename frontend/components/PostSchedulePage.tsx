@@ -34,6 +34,7 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
   
   const [hasConflict, setHasConflict] = useState(false);
   const [suggestedSlots, setSuggestedSlots] = useState<SuggestedSlot[]>([]);
+  const [noSlotsAvailable, setNoSlotsAvailable] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
@@ -84,6 +85,7 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
     } else {
       setHasConflict(false);
       setSuggestedSlots([]);
+      setNoSlotsAvailable(false);
     }
   }, [roomId, selectedDate, startTime, endTime]);
 
@@ -110,6 +112,7 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
       if (response.data.success) {
         setHasConflict(response.data.hasConflict);
         setSuggestedSlots(response.data.suggestedSlots || []);
+        setNoSlotsAvailable(response.data.noSlotsAvailable || false);
       }
     } catch (err) {
       console.error('Failed to check conflict:', err);
@@ -130,6 +133,7 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
     setEndTime(slot.endTime);
     setHasConflict(false);
     setSuggestedSlots([]);
+    setNoSlotsAvailable(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -176,8 +180,17 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
       }
     } catch (err: any) {
       console.error('Failed to create schedule:', err);
-      const message = err.response?.data?.message || 'Failed to create schedule. Please try again.';
-      setError(message);
+      const responseData = err.response?.data;
+      
+      // Handle conflict response from server
+      if (responseData?.hasConflict) {
+        setHasConflict(true);
+        setSuggestedSlots(responseData.suggestedSlots || []);
+        setNoSlotsAvailable(responseData.noSlotsAvailable || false);
+        setError(responseData.message || 'This room is already booked at the selected time.');
+      } else {
+        setError(responseData?.message || 'Failed to create schedule. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -221,7 +234,12 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
               </div>
             </div>
             
-            {suggestedSlots.length > 0 && (
+            {noSlotsAvailable ? (
+              <div className="mt-3 pt-3 border-t border-red-200">
+                <p className="text-red-700 font-medium">No available time slots on this day for this room.</p>
+                <p className="text-red-600 text-sm mt-1">Please try a different date or room.</p>
+              </div>
+            ) : suggestedSlots.length > 0 && (
               <div className="mt-4 pt-4 border-t border-red-200">
                 <p className="text-slate-700 font-medium mb-2">Available time slots for this room:</p>
                 <div className="flex flex-wrap gap-2">

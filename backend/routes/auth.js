@@ -10,7 +10,7 @@ const { authenticate } = require('../middleware/auth');
 // @access  Public
 router.post('/register', validateRegister, async (req, res, next) => {
   try {
-    const { name, email, password, department } = req.body;
+    const { name, email, password, department, profilePhoto } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -21,12 +21,21 @@ router.post('/register', validateRegister, async (req, res, next) => {
       });
     }
 
+    // Validate profile photo if provided
+    if (profilePhoto && !profilePhoto.startsWith('data:image/')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid image format. Please upload a valid image.'
+      });
+    }
+
     // Create user
     const user = await User.create({
       name,
       email,
       password,
-      department
+      department,
+      profilePhoto: profilePhoto || null
     });
 
     sendTokenResponse(user, 201, res);

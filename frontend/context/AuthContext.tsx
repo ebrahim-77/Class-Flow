@@ -20,11 +20,12 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string, profilePhoto?: string) => Promise<boolean>;
   logout: () => void;
   requestTeacherRole: (reason: string, department: string) => Promise<boolean>;
   refreshUser: () => Promise<void>;
   updateProfilePhoto: (photo: string) => Promise<boolean>;
+  updateProfile: (data: { name?: string; profilePhoto?: string }) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -68,9 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (name: string, email: string, password: string): Promise<boolean> => {
+  const register = async (name: string, email: string, password: string, profilePhoto?: string): Promise<boolean> => {
     try {
-      const response = await authAPI.register({ name, email, password });
+      const response = await authAPI.register({ name, email, password, profilePhoto });
       const { token, user: userData } = response.data;
       
       localStorage.setItem('token', token);
@@ -149,6 +150,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Function to update profile (name and/or photo)
+  const updateProfile = async (data: { name?: string; profilePhoto?: string }): Promise<boolean> => {
+    if (!user) return false;
+    try {
+      const response = await userAPI.updateUser(user.id, data);
+      if (response.data.success) {
+        const updatedUser = { ...user, ...data };
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        return true;
+      }
+      return false;
+    } catch (error: any) {
+      console.error('Failed to update profile:', error.response?.data?.message || error.message);
+      return false;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -161,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         requestTeacherRole,
         refreshUser,
         updateProfilePhoto,
+        updateProfile,
       }}
     >
       {children}

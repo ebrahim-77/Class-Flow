@@ -40,7 +40,7 @@ api.interceptors.response.use(
 
 // Authentication APIs
 export const authAPI = {
-  register: (data: { name: string; email: string; password: string; department?: string }) =>
+  register: (data: { name: string; email: string; password: string; department?: string; profilePhoto?: string }) =>
     api.post('/auth/register', data),
   
   login: (data: { email: string; password: string }) =>
@@ -158,7 +158,10 @@ export const bookingAPI = {
     api.put(`/bookings/${id}/cancel`),
   
   getStats: () =>
-    api.get('/bookings/stats/summary')
+    api.get('/bookings/stats/summary'),
+  
+  checkConflict: (data: { roomId: string; date: string; startTime: string; endTime: string; excludeId?: string }) =>
+    api.post('/bookings/check-conflict', data)
 };
 
 // Dashboard APIs

@@ -6,7 +6,8 @@ exports.validateRegister = (req, res, next) => {
     name: Joi.string().required().trim(),
     email: Joi.string().email().required().trim().lowercase(),
     password: Joi.string().min(6).required(),
-    department: Joi.string().trim().optional()
+    department: Joi.string().trim().optional(),
+    profilePhoto: Joi.string().optional().allow(null, '')
   });
 
   const { error } = schema.validate(req.body);
