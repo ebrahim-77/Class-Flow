@@ -289,17 +289,29 @@ router.post('/', authenticate, authorize('teacher'), validateSchedule, async (re
 // @access  Private
 router.get('/', authenticate, async (req, res, next) => {
   try {
-    const { day, roomId, teacherId } = req.query;
+    const { day, roomId, teacherId, degree, batch, weekStart, weekEnd } = req.query;
     const filter = { isActive: true };
 
     if (day) filter.day = day;
     if (roomId) filter.roomId = roomId;
     if (teacherId) filter.teacherId = teacherId;
+    if (degree) filter.degree = degree;
+
+    if (batch && degreeRequiresBatch.includes(degree)) {
+      filter.batch = Number(batch);
+    }
+
+    if (weekStart && weekEnd) {
+      filter.date = {
+        $gte: new Date(weekStart),
+        $lte: new Date(weekEnd)
+      };
+    }
 
     const schedules = await Schedule.find(filter)
       .populate('teacherId', 'name email')
       .populate('roomId', 'name building capacity')
-      .sort({ day: 1, startTime: 1 });
+      .sort({ date: 1, startTime: 1 });
 
     res.json({
       success: true,

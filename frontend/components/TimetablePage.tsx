@@ -1,70 +1,35 @@
 import { Layout } from './Layout';
 import type { Page } from '../App';
-import { ChevronLeft, ChevronRight, Plus, Loader2, Clock, MapPin, Building, User } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { scheduleAPI } from '../src/api';
 
 interface TimetablePageProps {
   onNavigate: (page: Page) => void;
 }
 
-interface Schedule {
+interface ScheduleItem {
   _id: string;
   courseName: string;
-  teacherName: string;
+  teacherName?: string;
+  teacherId?: {
+    name?: string;
+  };
   roomName: string;
   date: string;
   startTime: string;
   endTime: string;
-  color: string;
-  roomId?: {
-    building?: string;
-  };
 }
 
-interface Booking {
-  _id: string;
-  userName: string;
-  roomName: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  purpose: string;
-  userId: {
-    role: string;
-  };
-  roomId?: {
-    building?: string;
-  };
-}
+type DegreeOption = 'BSc Engg' | 'MSc Engg (Regular)' | 'MSc Engg (Evening)' | 'PhD Program';
 
-interface TimetableEvent {
-  id: string;
-  type: 'schedule' | 'booking';
-  title: string;
-  subtitle: string;
-  room: string;
-  building: string;
-  color: string;
-  dateKey: string;
-  dayLabel: string;
-  startTime: string;
-  endTime: string;
-  startMinutes: number;
-  endMinutes: number;
-}
-
-interface PositionedEvent extends TimetableEvent {
-  laneIndex: number;
-  laneCount: number;
-}
-
+const degreeOptions: DegreeOption[] = ['BSc Engg', 'MSc Engg (Regular)', 'MSc Engg (Evening)', 'PhD Program'];
 const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const timelineStartHour = 8;
-const timelineEndHour = 18;
-const timelineHeight = 600;
-const minuteToPixel = timelineHeight / ((timelineEndHour - timelineStartHour) * 60);
+const timeSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
+
+function degreeNeedsBatch(degree: DegreeOption | '') {
+  return degree === 'BSc Engg' || degree === 'MSc Engg (Regular)' || degree === 'MSc Engg (Evening)';
+}
 
 function getWeekStart(date: Date): Date {
   const start = new Date(date);
@@ -86,175 +51,191 @@ function addDays(date: Date, days: number): Date {
   return nextDate;
 }
 
-function timeToMinutes(time: string): number {
-  const [hours, minutes] = time.split(':').map(Number);
-  return hours * 60 + minutes;
+function formatHeaderDate(date: Date): string {
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function formatDisplayTime(time: string): string {
+function formatWeekRange(weekStart: Date): string {
+  const weekEnd = getWeekEnd(weekStart);
+  const startLabel = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const endLabel = weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `${startLabel} - ${endLabel}`;
+}
+
+function formatTimeLabel(time: string): string {
   const [hours, minutes] = time.split(':').map(Number);
   const period = hours >= 12 ? 'PM' : 'AM';
   const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
   return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
 }
 
-function formatDayHeader(date: Date): string {
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function getDateKey(date: Date): string {
-  return date.toISOString().split('T')[0];
-}
-
-function assignLanes(events: TimetableEvent[]): PositionedEvent[] {
-  const sorted = [...events].sort((a, b) => a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes);
-  const laneEnds: number[] = [];
-  const positioned = sorted.map((event) => {
-    let laneIndex = laneEnds.findIndex((laneEnd) => laneEnd <= event.startMinutes);
-
-    if (laneIndex === -1) {
-      laneIndex = laneEnds.length;
-      laneEnds.push(event.endMinutes);
-    } else {
-      laneEnds[laneIndex] = event.endMinutes;
-    }
-
-    return {
-      ...event,
-      laneIndex,
-      laneCount: 1,
-    };
-  });
-
-  const laneCount = Math.max(1, laneEnds.length);
-  return positioned.map((event) => ({ ...event, laneCount }));
-}
-
 export function TimetablePage({ onNavigate }: TimetablePageProps) {
-  const { user } = useAuth();
-  const isTeacher = user?.role === 'teacher';
-
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(getWeekStart(new Date()));
-  const [events, setEvents] = useState<TimetableEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [selectedDegree, setSelectedDegree] = useState<DegreeOption | ''>('');
+  const [selectedBatch, setSelectedBatch] = useState('');
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
-    fetchTimetableData();
-  }, [currentWeekStart]);
+    if (!degreeNeedsBatch(selectedDegree)) {
+      setSelectedBatch('');
+    }
+    setSchedules([]);
+    setHasSearched(false);
+    setError('');
+  }, [selectedDegree]);
 
-  async function fetchTimetableData() {
+  useEffect(() => {
+    setSchedules([]);
+    setHasSearched(false);
+    setError('');
+  }, [selectedBatch]);
+
+  async function fetchSchedules(degree: DegreeOption, batch?: number) {
     try {
       setLoading(true);
+      setError('');
       const weekEnd = getWeekEnd(currentWeekStart);
 
-      const response = await scheduleAPI.getTimetable(
-        currentWeekStart.toISOString(),
-        weekEnd.toISOString()
-      );
-
-      const { schedules, bookings } = response.data;
-      const combinedEvents: TimetableEvent[] = [];
-
-      schedules.forEach((schedule: Schedule) => {
-        const scheduleDate = new Date(schedule.date);
-        const startMinutes = timeToMinutes(schedule.startTime);
-        const endMinutes = timeToMinutes(schedule.endTime);
-
-        if (scheduleDate >= currentWeekStart && scheduleDate <= weekEnd) {
-          combinedEvents.push({
-            id: schedule._id,
-            type: 'schedule',
-            title: schedule.courseName,
-            subtitle: schedule.teacherName,
-            room: schedule.roomName,
-            building: schedule.roomId?.building || '',
-            color: schedule.color || 'bg-blue-500',
-            dateKey: getDateKey(scheduleDate),
-            dayLabel: dayLabels[scheduleDate.getDay()],
-            startTime: schedule.startTime,
-            endTime: schedule.endTime,
-            startMinutes,
-            endMinutes,
-          });
-        }
+      const response = await scheduleAPI.getAll({
+        degree,
+        ...(typeof batch === 'number' ? { batch } : {}),
+        weekStart: currentWeekStart.toISOString(),
+        weekEnd: weekEnd.toISOString(),
       });
 
-      bookings.forEach((booking: Booking) => {
-        const bookingDate = new Date(booking.date);
-        const startMinutes = timeToMinutes(booking.startTime);
-        const endMinutes = timeToMinutes(booking.endTime);
-
-        if (bookingDate >= currentWeekStart && bookingDate <= weekEnd) {
-          combinedEvents.push({
-            id: booking._id,
-            type: 'booking',
-            title: booking.purpose,
-            subtitle: booking.userName,
-            room: booking.roomName,
-            building: booking.roomId?.building || '',
-            color: booking.userId.role === 'teacher' ? 'bg-violet-500' : 'bg-amber-500',
-            dateKey: getDateKey(bookingDate),
-            dayLabel: dayLabels[bookingDate.getDay()],
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            startMinutes,
-            endMinutes,
-          });
-        }
-      });
-
-      setEvents(combinedEvents);
+      if (response.data.success) {
+        setSchedules(response.data.schedules || []);
+      } else {
+        setSchedules([]);
+      }
     } catch (error) {
-      console.error('Failed to fetch timetable:', error);
+      console.error('Failed to fetch schedules:', error);
+      setSchedules([]);
     } finally {
       setLoading(false);
     }
   }
 
+  async function handleSearch() {
+    if (!selectedDegree) {
+      setError('Please select degree and batch');
+      setSchedules([]);
+      setHasSearched(false);
+      return;
+    }
+
+    if (degreeNeedsBatch(selectedDegree) && !selectedBatch.trim()) {
+      setError('Please select degree and batch');
+      setSchedules([]);
+      setHasSearched(false);
+      return;
+    }
+
+    const parsedBatch = Number(selectedBatch);
+    if (degreeNeedsBatch(selectedDegree) && (!Number.isInteger(parsedBatch) || parsedBatch < 1)) {
+      setError('Please select degree and batch');
+      setSchedules([]);
+      setHasSearched(false);
+      return;
+    }
+
+    setHasSearched(true);
+    await fetchSchedules(selectedDegree, degreeNeedsBatch(selectedDegree) ? parsedBatch : undefined);
+  }
+
   function goToPreviousWeek() {
-    const newWeekStart = addDays(currentWeekStart, -7);
-    setCurrentWeekStart(getWeekStart(newWeekStart));
+    setCurrentWeekStart((prev) => getWeekStart(addDays(prev, -7)));
+    setSchedules([]);
+    setHasSearched(false);
+    setError('');
   }
 
   function goToNextWeek() {
-    const newWeekStart = addDays(currentWeekStart, 7);
-    setCurrentWeekStart(getWeekStart(newWeekStart));
+    setCurrentWeekStart((prev) => getWeekStart(addDays(prev, 7)));
+    setSchedules([]);
+    setHasSearched(false);
+    setError('');
   }
 
-  function formatWeekRange(weekStart: Date): string {
-    const weekEnd = getWeekEnd(weekStart);
-    const startLabel = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const endLabel = weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    return `${startLabel} - ${endLabel}`;
+  function getCellSchedules(dayIndex: number, slotHour: string) {
+    return schedules.filter((schedule) => {
+      const scheduleDate = new Date(schedule.date);
+      const dayMatches = scheduleDate.getDay() === dayIndex;
+      const hourMatches = schedule.startTime.split(':')[0] === slotHour.split(':')[0];
+      return dayMatches && hourMatches;
+    });
   }
-
-  function getEventsForDay(dateKey: string): PositionedEvent[] {
-    return assignLanes(events.filter((event) => event.dateKey === dateKey));
-  }
-
-  const dayColumns = Array.from({ length: 7 }, (_, index) => addDays(currentWeekStart, index));
-  const hourMarks = Array.from({ length: timelineEndHour - timelineStartHour + 1 }, (_, index) => timelineStartHour + index);
 
   return (
     <Layout currentPage="timetable" onNavigate={onNavigate} title="Timetable">
       <div className="mx-auto w-full max-w-[1100px] px-4 pb-6">
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-[#1E293B] mb-1">Weekly Schedule</h2>
-            <p className="text-slate-600">
-              {isTeacher ? 'View and manage class schedules' : 'View your class schedule'}
-            </p>
-          </div>
-          {isTeacher && (
-            <button
-              onClick={() => onNavigate('post-schedule')}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#3B82F6] px-4 py-3 text-sm font-medium text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-[#2563EB] sm:w-auto"
-            >
-              <Plus className="h-5 w-5" />
-              Post Schedule
-            </button>
-          )}
+        <div className="mb-4">
+          <h2 className="mb-1 text-xl font-semibold text-[#1E293B]">Weekly Schedule</h2>
+          <p className="text-slate-600">Sunday to Saturday class timetable</p>
         </div>
+
+        <div className="mb-5 w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:w-2/3">
+          <div className="grid w-full gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="degree-filter" className="mb-2 block text-sm font-medium text-[#1E293B]">
+                  Degree
+                </label>
+                <select
+                  id="degree-filter"
+                  value={selectedDegree}
+                  onChange={(e) => setSelectedDegree(e.target.value as DegreeOption | '')}
+                  className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-[#3B82F6] focus:outline-none"
+                >
+                  <option value="">Select degree</option>
+                  {degreeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {degreeNeedsBatch(selectedDegree) ? (
+                <div>
+                  <label htmlFor="batch-filter" className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    Batch
+                  </label>
+                  <input
+                    id="batch-filter"
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={selectedBatch}
+                    onChange={(e) => setSelectedBatch(e.target.value)}
+                    placeholder="Enter batch"
+                    className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-[#3B82F6] focus:outline-none"
+                  />
+                </div>
+              ) : (
+                <div className="hidden sm:block" />
+              )}
+
+              <div className="sm:col-span-2">
+                <button
+                  type="button"
+                  onClick={handleSearch}
+                  className="rounded-xl border-2 border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  Search
+                </button>
+              </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-700">
+            {error}
+          </div>
+        )}
 
         <div className="mb-5 flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <button
@@ -279,107 +260,64 @@ export function TimetablePage({ onNavigate }: TimetablePageProps) {
 
         {loading ? (
           <div className="rounded-2xl border border-slate-200 bg-white py-12 text-center shadow-sm">
-            <Loader2 className="mx-auto h-12 w-12 animate-spin text-blue-600" />
-            <p className="mt-4 text-slate-600">Loading timetable...</p>
+            <Loader2 className="mx-auto h-10 w-10 animate-spin text-blue-600" />
+            <p className="mt-3 text-slate-600">Loading timetable...</p>
           </div>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="min-w-[1080px]">
-              <div className="grid grid-cols-[96px_repeat(7,minmax(130px,1fr))] border-b border-slate-200 bg-slate-50">
-                <div className="px-4 py-4 text-sm font-medium text-slate-500">Time</div>
-                {dayColumns.map((dayDate) => {
-                  const isToday = dayDate.toDateString() === new Date().toDateString();
-                  return (
-                    <div
-                      key={getDateKey(dayDate)}
-                      className={`border-l border-slate-200 px-3 py-4 text-center ${isToday ? 'bg-blue-50' : ''}`}
+            <table className="min-w-[980px] w-full border-collapse">
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="w-32 border-b border-r border-slate-200 px-3 py-3 text-left text-sm font-medium text-slate-600">
+                    Day
+                  </th>
+                  {timeSlots.map((slot) => (
+                    <th
+                      key={slot}
+                      className="border-b border-r border-slate-200 px-2 py-3 text-center text-xs font-medium text-slate-600"
                     >
-                      <p className="text-sm font-semibold text-[#1E293B]">{dayLabels[dayDate.getDay()]}</p>
-                      <p className="text-xs text-slate-500">{formatDayHeader(dayDate)}</p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="grid grid-cols-[96px_repeat(7,minmax(130px,1fr))]">
-                <div className="relative border-r border-slate-200 bg-slate-50" style={{ height: `${timelineHeight}px` }}>
-                  {hourMarks.map((hour) => {
-                    const top = (hour - timelineStartHour) * 60 * minuteToPixel;
-                    return (
-                      <div key={hour} className="absolute left-0 right-0 -translate-y-1/2 px-3" style={{ top }}>
-                        <div className="text-right text-xs font-medium text-slate-500">{formatDisplayTime(`${hour.toString().padStart(2, '0')}:00`)}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {dayColumns.map((dayDate) => {
-                  const dayEvents = getEventsForDay(getDateKey(dayDate));
+                      {formatTimeLabel(slot)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dayLabels.map((dayLabel, dayIndex) => {
+                  const dayDate = addDays(currentWeekStart, dayIndex);
                   const isToday = dayDate.toDateString() === new Date().toDateString();
 
                   return (
-                    <div
-                      key={getDateKey(dayDate)}
-                      className={`relative border-l border-slate-200 ${isToday ? 'bg-blue-50/30' : ''}`}
-                      style={{
-                        height: `${timelineHeight}px`,
-                        backgroundImage: 'linear-gradient(to bottom, rgba(148, 163, 184, 0.16) 1px, transparent 1px)',
-                        backgroundSize: `100% 60px`,
-                      }}
-                    >
-                      {dayEvents.length === 0 ? (
-                        <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-slate-400">
-                          No events
-                        </div>
-                      ) : (
-                        dayEvents.map((event) => {
-                          const top = (event.startMinutes - timelineStartHour * 60) * minuteToPixel;
-                          const height = Math.max((event.endMinutes - event.startMinutes) * minuteToPixel, 44);
-                          const laneWidth = 100 / event.laneCount;
-                          const left = event.laneIndex * laneWidth;
+                    <tr key={dayLabel} className={isToday ? 'bg-blue-50/40' : 'bg-white'}>
+                      <td className="border-b border-r border-slate-200 px-3 py-3 align-top">
+                        <p className="text-sm font-semibold text-[#1E293B]">{dayLabel}</p>
+                        <p className="text-xs text-slate-500">{formatHeaderDate(dayDate)}</p>
+                      </td>
 
-                          return (
-                            <div
-                              key={event.id}
-                              className={`absolute rounded-2xl px-3 py-2 text-white shadow-lg shadow-slate-900/10 ${event.color}`}
-                              style={{
-                                top,
-                                height,
-                                left: `calc(${left}% + 4px)`,
-                                width: `calc(${laneWidth}% - 8px)`,
-                              }}
-                              title={`${event.title}\n${event.subtitle}\n${event.room}${event.building ? ` - ${event.building}` : ''}\n${event.startTime} - ${event.endTime}`}
-                            >
-                              <p className="text-sm font-semibold leading-tight line-clamp-2">{event.title}</p>
-                              <div className="mt-1 space-y-1 text-[11px] text-white/90">
-                                <p className="flex items-center gap-1.5">
-                                  <Clock className="h-3 w-3" />
-                                  <span>{formatDisplayTime(event.startTime)} - {formatDisplayTime(event.endTime)}</span>
-                                </p>
-                                <p className="flex items-center gap-1.5">
-                                  <MapPin className="h-3 w-3" />
-                                  <span className="line-clamp-1">{event.room}</span>
-                                </p>
-                                <p className="flex items-center gap-1.5">
-                                  <User className="h-3 w-3" />
-                                  <span className="line-clamp-1">{event.subtitle}</span>
-                                </p>
-                                {event.building && (
-                                  <p className="flex items-center gap-1.5">
-                                    <Building className="h-3 w-3" />
-                                    <span className="line-clamp-1">{event.building}</span>
-                                  </p>
-                                )}
-                              </div>
+                      {timeSlots.map((slot) => {
+                        const cellSchedules = hasSearched ? getCellSchedules(dayIndex, slot) : [];
+
+                        return (
+                          <td key={`${dayLabel}-${slot}`} className="h-[76px] border-b border-r border-slate-200 p-1 align-top">
+                            <div className="space-y-1">
+                              {cellSchedules.map((schedule) => (
+                                <div
+                                  key={schedule._id}
+                                  className="rounded-md bg-blue-500 px-2 py-1 text-left text-white"
+                                  title={`${schedule.courseName}\n${schedule.startTime} - ${schedule.endTime}`}
+                                >
+                                  <p className="truncate text-[12px] font-semibold leading-tight">{schedule.courseName}</p>
+                                  <p className="truncate text-[10px] text-white/85 leading-tight">{schedule.startTime} - {schedule.endTime}</p>
+                                </div>
+                              ))}
                             </div>
-                          );
-                        })
-                      )}
-                    </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
                   );
                 })}
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
         )}
       </div>

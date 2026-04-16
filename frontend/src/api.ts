@@ -93,7 +93,7 @@ export const scheduleAPI = {
   create: (data: { courseName: string; roomId: string; degree: ScheduleDegree; batch?: number; date: string; startTime: string; endTime: string; color?: string; semester?: string; academicYear?: string }) =>
     api.post('/schedules', data),
   
-  getAll: (filters?: { day?: string; roomId?: string; teacherId?: string; degree?: ScheduleDegree; batch?: number }) =>
+  getAll: (filters?: { day?: string; roomId?: string; teacherId?: string; degree?: ScheduleDegree; batch?: number; weekStart?: string; weekEnd?: string }) =>
     api.get('/schedules', { params: filters }),
   
   getTimetable: (startDate?: string, endDate?: string) =>
