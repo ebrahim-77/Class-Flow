@@ -7,6 +7,66 @@ const User = require('../models/User');
 const { authenticate, authorize } = require('../middleware/auth');
 const { validateSchedule } = require('../middleware/validators');
 
+const degreeRequiresBatch = ['BSc Engg', 'MSc Engg (Regular)', 'MSc Engg (Evening)'];
+
+const isRoomAvailableForRange = async (roomId, date, startTime, endTime, excludeScheduleId = null) => {
+  const scheduleDate = new Date(date);
+  scheduleDate.setHours(0, 0, 0, 0);
+  const nextDay = new Date(scheduleDate);
+  nextDay.setDate(nextDay.getDate() + 1);
+
+  const scheduleFilter = {
+    roomId,
+    date: {
+      $gte: scheduleDate,
+      $lt: nextDay
+    },
+    isActive: true
+  };
+
+  if (excludeScheduleId) {
+    scheduleFilter._id = { $ne: excludeScheduleId };
+  }
+
+  const existingSchedules = await Schedule.find(scheduleFilter);
+  if (existingSchedules.some((schedule) => hasTimeOverlap(startTime, endTime, schedule.startTime, schedule.endTime))) {
+    return false;
+  }
+
+  const existingBookings = await Booking.find({
+    roomId,
+    date: {
+      $gte: scheduleDate,
+      $lt: nextDay
+    },
+    status: { $in: ['pending', 'approved'] }
+  });
+
+  return !existingBookings.some((booking) => hasTimeOverlap(startTime, endTime, booking.startTime, booking.endTime));
+};
+
+const findAvailableRooms = async (date, startTime, endTime, excludeRoomId = null, excludeScheduleId = null) => {
+  const rooms = await Room.find({ status: 'available' }).sort({ building: 1, name: 1 });
+  const availableRooms = [];
+
+  for (const room of rooms) {
+    if (excludeRoomId && room._id.toString() === excludeRoomId.toString()) {
+      continue;
+    }
+
+    const isAvailable = await isRoomAvailableForRange(room._id, date, startTime, endTime, excludeScheduleId);
+    if (isAvailable) {
+      availableRooms.push(room);
+    }
+
+    if (availableRooms.length >= 5) {
+      break;
+    }
+  }
+
+  return availableRooms;
+};
+
 // Helper function to check time overlap
 const hasTimeOverlap = (start1, end1, start2, end2) => {
   return start1 < end2 && end1 > start2;
@@ -151,9 +211,9 @@ const findAvailableSlots = async (roomId, date, requestedDuration, excludeSchedu
 // @route   POST /api/schedules
 // @desc    Create new schedule
 // @access  Private (Teacher only)
-router.post('/', authenticate, authorize('teacher', 'admin'), validateSchedule, async (req, res, next) => {
+router.post('/', authenticate, authorize('teacher'), validateSchedule, async (req, res, next) => {
   try {
-    const { courseName, roomId, date, startTime, endTime, color, semester, academicYear } = req.body;
+    const { courseName, roomId, degree, batch, date, startTime, endTime, color, semester, academicYear } = req.body;
 
     // Validate date is provided
     if (!date) {
@@ -178,6 +238,7 @@ router.post('/', authenticate, authorize('teacher', 'admin'), validateSchedule, 
       // Calculate duration and find alternative slots
       const duration = calculateDuration(startTime, endTime);
       const suggestedSlots = await findAvailableSlots(roomId, date, duration);
+      const suggestedRooms = await findAvailableRooms(date, startTime, endTime, roomId);
       
       return res.status(400).json({
         success: false,
@@ -185,6 +246,7 @@ router.post('/', authenticate, authorize('teacher', 'admin'), validateSchedule, 
         hasConflict: true,
         conflictType,
         suggestedSlots,
+        suggestedRooms,
         noSlotsAvailable: suggestedSlots.length === 0
       });
     }
@@ -201,6 +263,8 @@ router.post('/', authenticate, authorize('teacher', 'admin'), validateSchedule, 
       teacherName: req.user.name,
       roomId,
       roomName: room.name,
+      degree,
+      batch: degreeRequiresBatch.includes(degree) ? batch : undefined,
       date: new Date(date),
       day,
       startTime,

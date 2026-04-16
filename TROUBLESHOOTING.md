@@ -5,6 +5,7 @@
 ### 1. Login/Registration Not Working
 
 #### Symptoms
+
 - "Login failed" error message
 - "Network error" in browser console
 - Nothing happens when clicking Sign In
@@ -12,6 +13,7 @@
 #### Solutions
 
 **Step 1: Check Backend Server**
+
 ```bash
 # Open terminal in backend folder
 cd backend
@@ -21,12 +23,14 @@ npm run dev
 ```
 
 Server should show:
+
 ```
 🚀 Server running on port 5000
 ✅ MongoDB connected successfully
 ```
 
 **Step 2: Check MongoDB**
+
 ```bash
 # Check if MongoDB is running
 mongosh
@@ -44,6 +48,7 @@ Open browser and go to: `http://localhost:5000/api/health`
 Should show: `{"status":"ok","message":"ClassFlow API is running"}`
 
 **Step 4: Check Browser Console**
+
 1. Open DevTools (F12)
 2. Go to Console tab
 3. Try logging in
@@ -52,23 +57,30 @@ Should show: `{"status":"ok","message":"ClassFlow API is running"}`
 **Common Errors:**
 
 **a) CORS Error**
+
 ```
 Access to XMLHttpRequest at 'http://localhost:5000' from origin 'http://localhost:5174' has been blocked by CORS policy
 ```
+
 **Fix:** Already configured in backend. Restart backend server.
 
 **b) Network Error / ERR_CONNECTION_REFUSED**
+
 ```
 Network Error
 AxiosError: Request failed with status code...
 ```
+
 **Fix:** Backend server is not running. Start it with `npm run dev` in backend folder.
 
 **c) 401 Unauthorized**
+
 ```
 Login failed: Invalid credentials
 ```
+
 **Fix:** Use correct demo credentials:
+
 - Student: `jamil@student.com` / `password123`
 - Teacher: `sarah@teacher.com` / `password123`
 - Admin: `admin@classflow.com` / `admin123`
@@ -78,61 +90,41 @@ Login failed: Invalid credentials
 #### Create/Recreate Admin Account
 
 **Option 1: Use createAdmin Script**
+
 ```bash
 cd backend
 node createAdmin.js
 ```
 
 **Option 2: Reseed Database**
+
 ```bash
 cd backend
 node seed.js
 ```
 
 **Option 3: Manual Creation in MongoDB Compass**
+
 1. Connect to `mongodb://localhost:27017`
 2. Open `classflow` database
 3. Open `users` collection
 4. Insert document:
+
 ```json
 {
   "name": "Admin User",
   "email": "admin@classflow.com",
   "password": "$2a$10$sampleHashedPassword",
   "role": "admin",
-  "teacherRequestStatus": "none",
   "createdAt": "2026-01-27T00:00:00.000Z",
   "updatedAt": "2026-01-27T00:00:00.000Z"
 }
 ```
+
 **Note:** Password will be hashed automatically when you login and change it.
 
-### 3. How to Approve Teacher Requests
-
-#### Step-by-Step Guide
-
-**Step 1: Student Submits Request**
-1. Student logs in (`jamil@student.com` / `password123`)
-2. Clicks "Request Teacher Role" in sidebar
-3. Fills out department and reason
-4. Submits request
-
-**Step 2: Admin Approves Request**
-1. Login as admin (`admin@classflow.com` / `admin123`)
-2. Click "Teacher Requests" in sidebar
-3. See all pending requests
-4. Click "Approve" button next to request
-5. Request status changes to "Approved"
-
-**Step 3: Student Becomes Teacher**
-1. Student logs out and logs back in
-2. Sidebar now shows teacher features:
-   - Post Schedule
-   - My Bookings
-   - Timetable (with teaching view)
-
 **Admin Dashboard Features:**
-- **Teacher Requests**: Approve/reject teacher role upgrades
+
 - **Booking Requests**: Approve/reject room bookings
 - **Manage Rooms**: Add, edit, delete rooms
 - **Statistics**: View system metrics
@@ -140,6 +132,7 @@ node seed.js
 ### 4. Port Already in Use
 
 #### Backend Port 5000
+
 ```bash
 # Windows - Find process using port 5000
 netstat -ano | findstr :5000
@@ -149,6 +142,7 @@ taskkill /PID <PID> /F
 ```
 
 #### Frontend Port 5174
+
 ```bash
 # Usually handled by Vite automatically
 # If needed, change port in vite.config.js
@@ -159,6 +153,7 @@ taskkill /PID <PID> /F
 #### MongoDB Not Running
 
 **Windows:**
+
 ```bash
 # Start MongoDB service
 net start MongoDB
@@ -169,11 +164,13 @@ mongod --dbpath "C:\data\db"
 
 **Check Connection String**
 In `backend/.env`:
+
 ```env
 MONGODB_URI=mongodb://localhost:27017/classflow
 ```
 
 Or use MongoDB Atlas:
+
 ```env
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/classflow
 ```
@@ -181,6 +178,7 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/classflow
 ### 6. Frontend Not Loading
 
 #### Clear Cache and Restart
+
 ```bash
 cd frontend
 
@@ -197,6 +195,7 @@ npm run dev
 #### Test Individual Endpoints
 
 **Test Login:**
+
 ```bash
 curl -X POST http://localhost:5000/api/auth/login \
   -H "Content-Type: application/json" \
@@ -204,6 +203,7 @@ curl -X POST http://localhost:5000/api/auth/login \
 ```
 
 **Expected Response:**
+
 ```json
 {
   "success": true,
@@ -218,6 +218,7 @@ curl -X POST http://localhost:5000/api/auth/login \
 ```
 
 **Test Get Rooms:**
+
 ```bash
 # Get auth token first, then:
 curl -X GET http://localhost:5000/api/rooms \
@@ -227,12 +228,14 @@ curl -X GET http://localhost:5000/api/rooms \
 ### 8. Environment Variables
 
 #### Check .env File Exists
+
 ```bash
 cd backend
 cat .env  # or type .env on Windows
 ```
 
 Should contain:
+
 ```env
 NODE_ENV=development
 PORT=5000
@@ -248,6 +251,7 @@ FRONTEND_URL=http://localhost:5174
 #### Reinstall Dependencies
 
 **Backend:**
+
 ```bash
 cd backend
 rm -rf node_modules
@@ -255,6 +259,7 @@ npm install
 ```
 
 **Frontend:**
+
 ```bash
 cd frontend
 rm -rf node_modules
@@ -264,6 +269,7 @@ npm install
 ### 10. Quick Reset Everything
 
 #### Complete Reset (Nuclear Option)
+
 ```bash
 # 1. Stop all servers (Ctrl+C in terminals)
 

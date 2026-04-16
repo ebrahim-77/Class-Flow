@@ -11,6 +11,65 @@ const hasTimeOverlap = (start1, end1, start2, end2) => {
   return start1 < end2 && end1 > start2;
 };
 
+const isRoomAvailableForRange = async (roomId, date, startTime, endTime, excludeBookingId = null) => {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const bookingFilter = {
+    roomId,
+    date: {
+      $gte: startOfDay,
+      $lte: endOfDay
+    },
+    status: { $in: ['pending', 'approved'] }
+  };
+
+  if (excludeBookingId) {
+    bookingFilter._id = { $ne: excludeBookingId };
+  }
+
+  const existingBookings = await Booking.find(bookingFilter);
+  if (existingBookings.some((booking) => hasTimeOverlap(startTime, endTime, booking.startTime, booking.endTime))) {
+    return false;
+  }
+
+  const existingSchedules = await Schedule.find({
+    roomId,
+    date: {
+      $gte: startOfDay,
+      $lte: endOfDay
+    },
+    isActive: true
+  });
+
+  return !existingSchedules.some((schedule) => hasTimeOverlap(startTime, endTime, schedule.startTime, schedule.endTime));
+};
+
+const findAvailableRooms = async (date, startTime, endTime, excludeRoomId = null, excludeBookingId = null) => {
+  const rooms = await Room.find({ status: 'available' }).sort({ building: 1, name: 1 });
+  const availableRooms = [];
+
+  for (const room of rooms) {
+    if (excludeRoomId && room._id.toString() === excludeRoomId.toString()) {
+      continue;
+    }
+
+    const isAvailable = await isRoomAvailableForRange(room._id, date, startTime, endTime, excludeBookingId);
+    if (isAvailable) {
+      availableRooms.push(room);
+    }
+
+    if (availableRooms.length >= 5) {
+      break;
+    }
+  }
+
+  return availableRooms;
+};
+
 // Helper function to calculate duration in hours
 const calculateDuration = (startTime, endTime) => {
   const [startHour, startMin] = startTime.split(':').map(Number);
@@ -148,8 +207,8 @@ const findAvailableSlots = async (roomId, date, requestedDuration, excludeBookin
 
 // @route   POST /api/bookings
 // @desc    Create new booking request
-// @access  Private (Student/Teacher)
-router.post('/', authenticate, authorize('student', 'teacher'), validateBooking, async (req, res, next) => {
+// @access  Private (Teacher only)
+router.post('/', authenticate, authorize('teacher'), validateBooking, async (req, res, next) => {
   try {
     const { roomId, date, startTime, endTime, purpose } = req.body;
 
@@ -211,8 +270,8 @@ router.post('/', authenticate, authorize('student', 'teacher'), validateBooking,
 
 // @route   POST /api/bookings/check-conflict
 // @desc    Check for booking conflicts and suggest available slots
-// @access  Private (Student/Teacher)
-router.post('/check-conflict', authenticate, authorize('student', 'teacher'), async (req, res, next) => {
+// @access  Private (Teacher only)
+router.post('/check-conflict', authenticate, authorize('teacher'), async (req, res, next) => {
   try {
     const { roomId, date, startTime, endTime, excludeId } = req.body;
 
@@ -234,12 +293,14 @@ router.post('/check-conflict', authenticate, authorize('student', 'teacher'), as
     const { hasConflict, conflictType } = await checkBookingConflict(roomId, date, startTime, endTime, excludeId);
     
     let suggestedSlots = [];
+    let suggestedRooms = [];
     let noSlotsAvailable = false;
     
     if (hasConflict) {
       // Calculate duration and find alternative slots
       const duration = calculateDuration(startTime, endTime);
       suggestedSlots = await findAvailableSlots(roomId, date, duration, excludeId);
+      suggestedRooms = await findAvailableRooms(date, startTime, endTime, roomId, excludeId);
       noSlotsAvailable = suggestedSlots.length === 0;
     }
 
@@ -248,6 +309,7 @@ router.post('/check-conflict', authenticate, authorize('student', 'teacher'), as
       hasConflict,
       conflictType,
       suggestedSlots,
+      suggestedRooms,
       noSlotsAvailable
     });
   } catch (error) {

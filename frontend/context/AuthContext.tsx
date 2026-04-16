@@ -1,9 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authAPI, teacherRequestAPI, userAPI } from '../src/api';
+import { authAPI, userAPI } from '../src/api';
 
 export type UserRole = 'student' | 'teacher' | 'admin';
-
-export type TeacherRequestStatus = 'none' | 'pending' | 'approved' | 'rejected';
 
 export interface User {
   id: string;
@@ -12,17 +10,15 @@ export interface User {
   role: UserRole;
   department?: string;
   profilePhoto?: string | null;
-  teacherRequestStatus?: TeacherRequestStatus;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   loading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string, profilePhoto?: string) => Promise<boolean>;
+  login: (email: string, password: string, role: UserRole) => Promise<boolean>;
+  register: (name: string, email: string, password: string, role: UserRole) => Promise<boolean>;
   logout: () => void;
-  requestTeacherRole: (reason: string, department: string) => Promise<boolean>;
   refreshUser: () => Promise<void>;
   updateProfilePhoto: (photo: string) => Promise<boolean>;
   updateProfile: (data: { name?: string; profilePhoto?: string }) => Promise<boolean>;
@@ -52,9 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string, role: UserRole): Promise<boolean> => {
     try {
-      const response = await authAPI.login({ email, password });
+      const response = await authAPI.login({ email, password, role });
       const { token, user: userData } = response.data;
       
       localStorage.setItem('token', token);
@@ -69,9 +65,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (name: string, email: string, password: string, profilePhoto?: string): Promise<boolean> => {
+  const register = async (name: string, email: string, password: string, role: UserRole): Promise<boolean> => {
     try {
-      const response = await authAPI.register({ name, email, password, profilePhoto });
+      const response = await authAPI.register({ name, email, password, role });
       const { token, user: userData } = response.data;
       
       localStorage.setItem('token', token);
@@ -90,32 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
-  };
-
-  const requestTeacherRole = async (reason: string, department: string): Promise<boolean> => {
-    if (user && user.role === 'student' && reason && department) {
-      try {
-        await teacherRequestAPI.submit({ department, reason });
-        // Update local state with pending status
-        setUser({
-          ...user,
-          department,
-          teacherRequestStatus: 'pending',
-        });
-        // Also update localStorage
-        const updatedUser = {
-          ...user,
-          department,
-          teacherRequestStatus: 'pending',
-        };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        return true;
-      } catch (error: any) {
-        console.error('Teacher request error:', error.response?.data?.message || error.message);
-        return false;
-      }
-    }
-    return false;
   };
 
   // Function to refresh user data from backend
@@ -177,7 +147,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
-        requestTeacherRole,
         refreshUser,
         updateProfilePhoto,
         updateProfile,

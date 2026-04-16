@@ -1,18 +1,21 @@
-import { Calendar, DoorOpen, Clock, MapPin, User, BookOpen, Building } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, Building } from 'lucide-react';
 import { Layout } from './Layout';
 import type { Page } from '../App';
-import { useAuth } from '../context/AuthContext';
 import { useState, useEffect } from 'react';
 import { scheduleAPI } from '../src/api';
+import { useAuth } from '../context/AuthContext';
 
 interface DashboardProps {
   onNavigate: (page: Page) => void;
 }
 
-interface UpcomingClass {
+interface ScheduleItem {
   _id: string;
   courseName: string;
   teacherName: string;
+  degree: 'BSc Engg' | 'MSc Engg (Regular)' | 'MSc Engg (Evening)' | 'PhD Program';
+  batch?: number;
+  date: string;
   roomName: string;
   day: string;
   startTime: string;
@@ -24,63 +27,62 @@ interface UpcomingClass {
   };
 }
 
+const degreeOptions = ['BSc Engg', 'MSc Engg (Regular)', 'MSc Engg (Evening)', 'PhD Program'] as const;
+
+const degreeNeedsBatch = (degree: string) => degree === 'BSc Engg' || degree === 'MSc Engg (Regular)' || degree === 'MSc Engg (Evening)';
+
+function getOrdinalSuffix(n: number) {
+  const j = n % 10;
+  const k = n % 100;
+  if (j === 1 && k !== 11) return 'st';
+  if (j === 2 && k !== 12) return 'nd';
+  if (j === 3 && k !== 13) return 'rd';
+  return 'th';
+}
+
+function formatDegreeBatch(schedule: ScheduleItem) {
+  if (degreeNeedsBatch(schedule.degree) && schedule.batch) {
+    return `${schedule.degree} (${schedule.batch}${getOrdinalSuffix(schedule.batch)} batch)`;
+  }
+  return schedule.degree;
+}
+
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { user } = useAuth();
-  const [upcomingClasses, setUpcomingClasses] = useState<UpcomingClass[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [now, setNow] = useState(Date.now());
+  const [selectedDegree, setSelectedDegree] = useState('');
+  const [selectedBatch, setSelectedBatch] = useState('');
 
   useEffect(() => {
-    if (user?.role === 'student' || user?.role === 'teacher') {
-      fetchUpcomingClasses();
-    } else {
-      setLoading(false);
-    }
-  }, [user?.role]);
+    fetchSchedules();
+  }, []);
 
-  async function fetchUpcomingClasses() {
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  async function fetchSchedules() {
     try {
       setLoading(true);
+      setError('');
       const response = await scheduleAPI.getAll();
       if (response.data.success) {
-        // Sort by day and time relative to today, get next 5
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
-        const currentDayIndex = today === 0 ? 6 : today - 1; // Convert to Mon=0, Tue=1, etc.
-        
-        const sorted = response.data.schedules
-          .map((s: UpcomingClass) => ({
-            ...s,
-            // Calculate days until this class (for sorting)
-            daysUntil: (days.indexOf(s.day) - currentDayIndex + 7) % 7
-          }))
-          .sort((a: any, b: any) => {
-            if (a.daysUntil !== b.daysUntil) return a.daysUntil - b.daysUntil;
-            return a.startTime.localeCompare(b.startTime);
-          })
-          .slice(0, 5);
-        setUpcomingClasses(sorted);
+        setSchedules(response.data.schedules || []);
       }
     } catch (error) {
-      console.error('Failed to fetch upcoming classes:', error);
+      console.error('Failed to fetch schedules:', error);
+      setError('Failed to load schedules.');
     } finally {
       setLoading(false);
     }
   }
-
-  if (!user) return null;
-
-  const getWelcomeMessage = () => {
-    switch (user.role) {
-      case 'student':
-        return 'View your class schedule and request teacher role.';
-      case 'teacher':
-        return 'Manage your class schedules and room bookings.';
-      case 'admin':
-        return 'Manage teacher requests and room settings.';
-      default:
-        return '';
-    }
-  };
 
   function formatTime(time: string): string {
     const [hours, minutes] = time.split(':').map(Number);
@@ -89,191 +91,206 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
   }
 
-  // Get the next occurrence date for a given day
-  function getNextDate(day: string): string {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const today = new Date();
-    const targetDay = days.indexOf(day);
-    const currentDay = today.getDay();
-    let daysUntil = targetDay - currentDay;
-    if (daysUntil <= 0) daysUntil += 7;
-    const nextDate = new Date(today);
-    nextDate.setDate(today.getDate() + daysUntil);
-    return nextDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  function getDateValue(dateString: string): number {
+    const date = new Date(dateString);
+    date.setHours(0, 0, 0, 0);
+    return date.getTime();
   }
 
+  useEffect(() => {
+    if (!degreeNeedsBatch(selectedDegree)) {
+      setSelectedBatch('');
+    }
+  }, [selectedDegree]);
+
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const todayValue = today.getTime();
+
+  const filteredSchedules = schedules.filter((schedule) => {
+    if (selectedDegree && schedule.degree !== selectedDegree) {
+      return false;
+    }
+
+    if (degreeNeedsBatch(selectedDegree) && selectedBatch) {
+      return Number(schedule.batch) === Number(selectedBatch);
+    }
+
+    return true;
+  });
+
+  const upcomingSchedules = filteredSchedules
+    .filter((schedule) => getDateValue(schedule.date) >= todayValue)
+    .sort((a, b) => {
+      const byDate = getDateValue(a.date) - getDateValue(b.date);
+      if (byDate !== 0) return byDate;
+      return a.startTime.localeCompare(b.startTime);
+    });
+
+  const pastSchedules = filteredSchedules
+    .filter((schedule) => getDateValue(schedule.date) < todayValue)
+    .sort((a, b) => {
+      const byDate = getDateValue(b.date) - getDateValue(a.date);
+      if (byDate !== 0) return byDate;
+      return b.startTime.localeCompare(a.startTime);
+    });
+
   return (
-    <Layout currentPage="dashboard" onNavigate={onNavigate}>
-      {/* Welcome Section */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#1E293B] mb-2">
-          Welcome back, {user.name}!
-        </h1>
-        <p className="text-slate-600">{getWelcomeMessage()}</p>
-      </div>
-
-      {/* Role Badge */}
-      <div className="mb-6">
-        <span className={`
-          inline-flex items-center px-4 py-2 rounded-full text-sm font-medium
-          ${user.role === 'student' ? 'bg-blue-100 text-blue-700' : ''}
-          ${user.role === 'teacher' ? 'bg-purple-100 text-purple-700' : ''}
-          ${user.role === 'admin' ? 'bg-green-100 text-green-700' : ''}
-        `}>
-          {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-        </span>
-        {user.role === 'student' && user.teacherRequestStatus === 'pending' && (
-          <span className="ml-3 inline-flex items-center px-3 py-1 rounded-full text-sm bg-amber-100 text-amber-700">
-            Teacher request pending
-          </span>
-        )}
-      </div>
-
-      {/* Upcoming Classes Section - for students and teachers */}
-      {(user.role === 'student' || user.role === 'teacher') && (
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold text-[#1E293B] mb-4 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-[#3B82F6]" />
-            Upcoming Classes
-          </h2>
-          
-          {loading ? (
-            <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="text-slate-500 mt-2">Loading classes...</p>
-            </div>
-          ) : upcomingClasses.length > 0 ? (
-            <div className="space-y-3">
-              {upcomingClasses.map((cls) => (
-                <div 
-                  key={cls._id}
-                  className="bg-white rounded-xl p-4 shadow-sm border border-slate-200"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-semibold text-[#1E293B]">{cls.courseName}</h3>
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                      {getNextDate(cls.day)}
-                    </span>
+    <Layout currentPage="dashboard" onNavigate={onNavigate} title="Dashboard">
+      <div className="mx-auto w-full max-w-[480px] px-4 pb-6">
+        {loading ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-sm text-slate-600">Loading schedules...</p>
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-3 sm:flex-1">
+                  <div>
+                    <label htmlFor="degree-filter" className="mb-2 block text-sm font-medium text-[#1E293B]">Degree</label>
+                    <select
+                      id="degree-filter"
+                      value={selectedDegree}
+                      onChange={(e) => setSelectedDegree(e.target.value)}
+                      className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-[#3B82F6] focus:outline-none"
+                    >
+                      <option value="">All Degrees</option>
+                      {degreeOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-slate-600">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4 text-[#3B82F6]" />
-                      <span>{cls.day}</span>
+
+                  {degreeNeedsBatch(selectedDegree) && (
+                    <div>
+                      <label htmlFor="batch-filter" className="mb-2 block text-sm font-medium text-[#1E293B]">Batch</label>
+                      <input
+                        id="batch-filter"
+                        type="number"
+                        min={1}
+                        step={1}
+                        inputMode="numeric"
+                        value={selectedBatch}
+                        onChange={(e) => setSelectedBatch(e.target.value)}
+                        placeholder="Enter batch"
+                        className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-[#3B82F6] focus:outline-none"
+                      />
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4 text-[#3B82F6]" />
-                      <span>{formatTime(cls.startTime)} - {formatTime(cls.endTime)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4 text-[#3B82F6]" />
-                      <span>{cls.roomName}</span>
-                    </div>
-                    {cls.roomId?.building && (
-                      <div className="flex items-center gap-1">
-                        <Building className="w-4 h-4 text-[#3B82F6]" />
-                        <span>{cls.roomId.building}</span>
+                  )}
+                </div>
+
+                {user?.role === 'teacher' && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('post-schedule')}
+                    className="w-full rounded-xl bg-[#3B82F6] px-4 py-3 font-medium text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-[#2563EB] sm:self-end sm:w-auto"
+                  >
+                    Post Schedule
+                  </button>
+                )}
+              </div>
+            </section>
+
+            <section>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-[#1E293B]">Upcoming Classes</h2>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">Future</span>
+              </div>
+              {upcomingSchedules.length === 0 ? (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 shadow-sm">
+                  <p className="text-sm text-slate-500">No upcoming classes.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingSchedules.map((schedule) => (
+                    <div key={schedule._id} className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                      <h3 className="text-base font-bold text-[#1E293B]">{schedule.courseName}</h3>
+                      <p className="mt-1 text-sm text-slate-600">{formatDegreeBatch(schedule)}</p>
+                      <div className="mt-3 space-y-2 text-sm text-slate-600">
+                        <p className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{new Date(schedule.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{schedule.day}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{schedule.roomName}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <Building className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{schedule.roomId?.building || 'N/A'}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{schedule.teacherName}</span>
+                        </p>
                       </div>
-                    )}
-                    <div className="flex items-center gap-1">
-                      <User className="w-4 h-4 text-[#3B82F6]" />
-                      <span>{cls.teacherName}</span>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200 text-center">
-              <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500">No upcoming classes scheduled.</p>
-              <p className="text-slate-400 text-sm mt-1">Check back later for your schedule.</p>
-            </div>
-          )}
-        </div>
-      )}
+              )}
+            </section>
 
-      {/* Quick Actions */}
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-[#1E293B] mb-4">Quick Actions</h2>
-        <div className="flex flex-wrap gap-4">
-          {user.role === 'student' && (
-            <>
-              <button
-                onClick={() => onNavigate('timetable')}
-                className="bg-white rounded-xl px-6 py-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all flex items-center gap-3"
-              >
-                <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-white" />
+            <section>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-[#1E293B]">Past Classes</h2>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">Archive</span>
+              </div>
+              {pastSchedules.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                  <p className="text-sm text-slate-500">No past classes.</p>
                 </div>
-                <span className="font-medium text-[#1E293B]">View Timetable</span>
-              </button>
-              <button
-                onClick={() => onNavigate('request-teacher')}
-                className="bg-white rounded-xl px-6 py-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all flex items-center gap-3"
-              >
-                <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
-                  <User className="w-5 h-5 text-white" />
+              ) : (
+                <div className="space-y-3">
+                  {pastSchedules.map((schedule) => (
+                    <div key={schedule._id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                      <h3 className="text-base font-bold text-[#1E293B]">{schedule.courseName}</h3>
+                      <p className="mt-1 text-sm text-slate-600">{formatDegreeBatch(schedule)}</p>
+                      <div className="mt-3 space-y-2 text-sm text-slate-600">
+                        <p className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{new Date(schedule.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{schedule.day}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{schedule.roomName}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <Building className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{schedule.roomId?.building || 'N/A'}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-[#3B82F6]" />
+                          <span>{schedule.teacherName}</span>
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <span className="font-medium text-[#1E293B]">Request Teacher Role</span>
-              </button>
-            </>
-          )}
-
-          {user.role === 'teacher' && (
-            <>
-              <button
-                onClick={() => onNavigate('timetable')}
-                className="bg-white rounded-xl px-6 py-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all flex items-center gap-3"
-              >
-                <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                  <Calendar className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-medium text-[#1E293B]">View Timetable</span>
-              </button>
-              <button
-                onClick={() => onNavigate('post-schedule')}
-                className="bg-white rounded-xl px-6 py-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all flex items-center gap-3"
-              >
-                <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-medium text-[#1E293B]">Post Schedule</span>
-              </button>
-              <button
-                onClick={() => onNavigate('rooms')}
-                className="bg-white rounded-xl px-6 py-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all flex items-center gap-3"
-              >
-                <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
-                  <DoorOpen className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-medium text-[#1E293B]">Book a Room</span>
-              </button>
-            </>
-          )}
-
-          {user.role === 'admin' && (
-            <>
-              <button
-                onClick={() => onNavigate('teacher-requests')}
-                className="bg-white rounded-xl px-6 py-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all flex items-center gap-3"
-              >
-                <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                  <User className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-medium text-[#1E293B]">Teacher Requests</span>
-              </button>
-              <button
-                onClick={() => onNavigate('manage-rooms')}
-                className="bg-white rounded-xl px-6 py-4 shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all flex items-center gap-3"
-              >
-                <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-                  <MapPin className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-medium text-[#1E293B]">Manage Rooms</span>
-              </button>
-            </>
-          )}
-        </div>
+              )}
+            </section>
+          </div>
+        )}
       </div>
     </Layout>
   );

@@ -26,6 +26,19 @@ const scheduleSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  degree: {
+    type: String,
+    enum: ['BSc Engg', 'MSc Engg (Regular)', 'MSc Engg (Evening)', 'PhD Program'],
+    required: [true, 'Degree is required']
+  },
+  batch: {
+    type: Number,
+    min: [1, 'Batch must be at least 1'],
+    validate: {
+      validator: Number.isInteger,
+      message: 'Batch must be an integer'
+    }
+  },
   // Specific date for the schedule
   date: {
     type: Date,
@@ -75,6 +88,7 @@ const scheduleSchema = new mongoose.Schema({
 scheduleSchema.index({ teacherId: 1, date: 1 });
 scheduleSchema.index({ roomId: 1, date: 1 });
 scheduleSchema.index({ date: 1, startTime: 1 });
+scheduleSchema.index({ degree: 1, batch: 1, date: 1 });
 scheduleSchema.index({ isActive: 1 });
 
 module.exports = mongoose.model('Schedule', scheduleSchema);

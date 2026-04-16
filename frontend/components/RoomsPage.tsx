@@ -4,6 +4,7 @@ import { MapPin, Users, Wifi, Monitor, CheckCircle, XCircle, Clock, Loader2, Ale
 import { useState, useEffect } from 'react';
 import { BookingModal } from './BookingModal';
 import { roomAPI } from '../src/api';
+import { useAuth } from '../context/AuthContext';
 
 interface RoomsPageProps {
   onNavigate: (page: Page) => void;
@@ -20,6 +21,7 @@ interface Room {
 }
 
 export function RoomsPage({ onNavigate }: RoomsPageProps) {
+  const { user } = useAuth();
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedRoomForBooking, setSelectedRoomForBooking] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -84,7 +86,7 @@ export function RoomsPage({ onNavigate }: RoomsPageProps) {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-[#1E293B] mb-2">Available Rooms</h2>
-          <p className="text-slate-600">Browse and book rooms for study sessions or meetings.</p>
+          <p className="text-slate-600">Browse rooms. Teachers can book them for classes or meetings.</p>
         </div>
         <button
           onClick={fetchRooms}
@@ -169,18 +171,19 @@ export function RoomsPage({ onNavigate }: RoomsPageProps) {
                   })}
                 </div>
 
-                {/* Book Button */}
-                <button
-                  onClick={() => handleBookRoom(room.name)}
-                  disabled={room.status !== 'available'}
-                  className={`w-full py-3 rounded-xl transition-colors font-medium ${
-                    room.status === 'available'
-                      ? 'bg-[#3B82F6] text-white hover:bg-[#2563EB] shadow-lg shadow-blue-500/30'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  {room.status === 'available' ? 'Book Room' : 'Not Available'}
-                </button>
+                {user?.role === 'teacher' && (
+                  <button
+                    onClick={() => handleBookRoom(room.name)}
+                    disabled={room.status !== 'available'}
+                    className={`w-full py-3 rounded-xl transition-colors font-medium ${
+                      room.status === 'available'
+                        ? 'bg-[#3B82F6] text-white hover:bg-[#2563EB] shadow-lg shadow-blue-500/30'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {room.status === 'available' ? 'Book Room' : 'Not Available'}
+                  </button>
+                )}
               </div>
             </div>
           );

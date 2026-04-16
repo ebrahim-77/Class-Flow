@@ -10,7 +10,14 @@ const { authenticate } = require('../middleware/auth');
 // @access  Public
 router.post('/register', validateRegister, async (req, res, next) => {
   try {
-    const { name, email, password, department, profilePhoto } = req.body;
+    const { name, email, password, role, department, profilePhoto } = req.body;
+
+    if (role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin accounts must be created manually'
+      });
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -34,6 +41,7 @@ router.post('/register', validateRegister, async (req, res, next) => {
       name,
       email,
       password,
+      role,
       department,
       profilePhoto: profilePhoto || null
     });
@@ -49,7 +57,7 @@ router.post('/register', validateRegister, async (req, res, next) => {
 // @access  Public
 router.post('/login', validateLogin, async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     // Find user and include password
     const user = await User.findOne({ email }).select('+password');
@@ -67,6 +75,13 @@ router.post('/login', validateLogin, async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
+      });
+    }
+
+    if (user.role !== role) {
+      return res.status(403).json({
+        success: false,
+        message: `This account is registered as ${user.role}. Please continue as ${user.role}.`
       });
     }
 
@@ -91,8 +106,7 @@ router.get('/me', authenticate, async (req, res, next) => {
         email: user.email,
         role: user.role,
         department: user.department,
-        profilePhoto: user.profilePhoto,
-        teacherRequestStatus: user.teacherRequestStatus
+        profilePhoto: user.profilePhoto
       }
     });
   } catch (error) {

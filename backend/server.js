@@ -14,7 +14,6 @@ const userRoutes = require('./routes/users');
 const scheduleRoutes = require('./routes/schedules');
 const roomRoutes = require('./routes/rooms');
 const bookingRoutes = require('./routes/bookings');
-const teacherRequestRoutes = require('./routes/teacherRequests');
 const dashboardRoutes = require('./routes/dashboard');
 
 // Import middleware
@@ -43,7 +42,6 @@ app.use('/api/users', userRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
-app.use('/api/teacher-requests', teacherRequestRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 // Health check

@@ -20,9 +20,24 @@ interface SuggestedSlot {
   endTime: string;
 }
 
+interface SuggestedRoom {
+  _id: string;
+  name: string;
+  building: string;
+  capacity: number;
+}
+
+type DegreeOption = 'BSc Engg' | 'MSc Engg (Regular)' | 'MSc Engg (Evening)' | 'PhD Program';
+
+const degreeOptions: DegreeOption[] = ['BSc Engg', 'MSc Engg (Regular)', 'MSc Engg (Evening)', 'PhD Program'];
+
+const degreeNeedsBatch = (degree: DegreeOption | '') => degree === 'BSc Engg' || degree === 'MSc Engg (Regular)' || degree === 'MSc Engg (Evening)';
+
 export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
   const [courseName, setCourseName] = useState('');
   const [roomId, setRoomId] = useState('');
+  const [degree, setDegree] = useState<DegreeOption | ''>('');
+  const [batch, setBatch] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -34,6 +49,7 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
   
   const [hasConflict, setHasConflict] = useState(false);
   const [suggestedSlots, setSuggestedSlots] = useState<SuggestedSlot[]>([]);
+  const [suggestedRooms, setSuggestedRooms] = useState<SuggestedRoom[]>([]);
   const [noSlotsAvailable, setNoSlotsAvailable] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
@@ -52,16 +68,16 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
     return today.toISOString().split('T')[0];
   };
 
-  const timeSlots = [
-    '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-    '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-    '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'
-  ];
-
   // Fetch rooms on mount
   useEffect(() => {
     fetchRooms();
   }, []);
+
+  useEffect(() => {
+    if (degree === 'PhD Program') {
+      setBatch('');
+    }
+  }, [degree]);
 
   async function fetchRooms() {
     try {
@@ -85,6 +101,7 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
     } else {
       setHasConflict(false);
       setSuggestedSlots([]);
+      setSuggestedRooms([]);
       setNoSlotsAvailable(false);
     }
   }, [roomId, selectedDate, startTime, endTime]);
@@ -112,6 +129,7 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
       if (response.data.success) {
         setHasConflict(response.data.hasConflict);
         setSuggestedSlots(response.data.suggestedSlots || []);
+        setSuggestedRooms(response.data.suggestedRooms || []);
         setNoSlotsAvailable(response.data.noSlotsAvailable || false);
       }
     } catch (err) {
@@ -133,6 +151,15 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
     setEndTime(slot.endTime);
     setHasConflict(false);
     setSuggestedSlots([]);
+    setSuggestedRooms([]);
+    setNoSlotsAvailable(false);
+  }
+
+  function selectSuggestedRoom(room: SuggestedRoom) {
+    setRoomId(room._id);
+    setHasConflict(false);
+    setSuggestedSlots([]);
+    setSuggestedRooms([]);
     setNoSlotsAvailable(false);
   }
 
@@ -144,9 +171,17 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
       return;
     }
     
-    if (!courseName || !roomId || !selectedDate || !startTime || !endTime) {
+    if (!courseName || !roomId || !degree || !selectedDate || !startTime || !endTime) {
       setError('Please fill in all required fields.');
       return;
+    }
+
+    if (degreeNeedsBatch(degree)) {
+      const parsedBatch = Number(batch);
+      if (!batch || !Number.isInteger(parsedBatch) || parsedBatch < 1) {
+        setError('Batch is required and must be a valid integer.');
+        return;
+      }
     }
     
     if (endTime <= startTime) {
@@ -161,6 +196,8 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
       const response = await scheduleAPI.create({
         courseName,
         roomId,
+        degree,
+        ...(degreeNeedsBatch(degree) ? { batch: Number(batch) } : {}),
         date: selectedDate,
         startTime,
         endTime
@@ -173,6 +210,8 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
           setSubmitted(false);
           setCourseName('');
           setRoomId('');
+          setDegree('');
+          setBatch('');
           setSelectedDate('');
           setStartTime('');
           setEndTime('');
@@ -186,6 +225,7 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
       if (responseData?.hasConflict) {
         setHasConflict(true);
         setSuggestedSlots(responseData.suggestedSlots || []);
+        setSuggestedRooms(responseData.suggestedRooms || []);
         setNoSlotsAvailable(responseData.noSlotsAvailable || false);
         setError(responseData.message || 'This room is already booked at the selected time.');
       } else {
@@ -200,9 +240,9 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
 
   return (
     <Layout currentPage="post-schedule" onNavigate={onNavigate} title="Post Schedule">
-      <div className="max-w-2xl">
+      <div className="mx-auto w-full max-w-[480px] px-4 pb-6">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h2 className="text-xl font-semibold text-[#1E293B] mb-2">Create Class Schedule</h2>
           <p className="text-slate-600">Add a new class to the university timetable</p>
         </div>
@@ -230,16 +270,35 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
               <AlertCircle className="w-5 h-5 text-red-600" />
               <div>
                 <span className="text-red-700 font-medium">Schedule Conflict Detected</span>
-                <p className="text-red-600 text-sm">This room is already booked for this time slot.</p>
+                  <p className="text-red-600 text-sm">This room is already booked for the selected time.</p>
               </div>
             </div>
-            
-            {noSlotsAvailable ? (
+
+              {suggestedRooms.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-red-200">
+                  <p className="text-slate-700 font-medium mb-2">Try another room at the same time:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedRooms.map((room) => (
+                      <button
+                        key={room._id}
+                        type="button"
+                        onClick={() => selectSuggestedRoom(room)}
+                        className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-left text-sm text-blue-700 transition-colors hover:bg-blue-50"
+                      >
+                        <span className="block font-medium">{room.name}</span>
+                        <span className="block text-xs text-blue-600">{room.building} • Capacity {room.capacity}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {noSlotsAvailable ? (
               <div className="mt-3 pt-3 border-t border-red-200">
                 <p className="text-red-700 font-medium">No available time slots on this day for this room.</p>
                 <p className="text-red-600 text-sm mt-1">Please try a different date or room.</p>
               </div>
-            ) : suggestedSlots.length > 0 && (
+              ) : suggestedSlots.length > 0 && (
               <div className="mt-4 pt-4 border-t border-red-200">
                 <p className="text-slate-700 font-medium mb-2">Available time slots for this room:</p>
                 <div className="flex flex-wrap gap-2">
@@ -261,13 +320,13 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
 
         {/* Loading State */}
         {loading ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-center">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
             <p className="text-slate-600 mt-2">Loading rooms...</p>
           </div>
         ) : (
           /* Form */
-          <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+          <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-5">
             {/* Course Name */}
             <div>
               <label htmlFor="course" className="flex items-center gap-2 text-[#1E293B] font-medium mb-2">
@@ -284,6 +343,46 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
                 required
               />
             </div>
+
+            {/* Degree Selection */}
+            <div>
+              <label htmlFor="degree" className="block text-[#1E293B] font-medium mb-2">
+                Degree *
+              </label>
+              <select
+                id="degree"
+                value={degree}
+                onChange={(e) => setDegree(e.target.value as DegreeOption | '')}
+                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-[#3B82F6] focus:outline-none text-slate-900"
+                required
+              >
+                <option value="">Select degree</option>
+                {degreeOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Batch Input (conditional) */}
+            {degreeNeedsBatch(degree) && (
+              <div>
+                <label htmlFor="batch" className="block text-[#1E293B] font-medium mb-2">
+                  Batch *
+                </label>
+                <input
+                  id="batch"
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={batch}
+                  onChange={(e) => setBatch(e.target.value)}
+                  placeholder="e.g., 13"
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-[#3B82F6] focus:outline-none text-slate-900"
+                  required
+                />
+              </div>
+            )}
 
             {/* Room Selection */}
             <div>
@@ -335,42 +434,34 @@ export function PostSchedulePage({ onNavigate }: PostSchedulePageProps) {
             </div>
 
             {/* Time Selection */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div>
                 <label htmlFor="startTime" className="flex items-center gap-2 text-[#1E293B] font-medium mb-2">
                   <Clock className="w-4 h-4" />
                   Start Time *
                 </label>
-                <select
+                <input
                   id="startTime"
+                  type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-[#3B82F6] focus:outline-none text-slate-900"
                   required
-                >
-                  <option value="">Select time</option>
-                  {timeSlots.slice(0, -1).map((t) => (
-                    <option key={t} value={t}>{formatTime(t)}</option>
-                  ))}
-                </select>
+                />
               </div>
               <div>
                 <label htmlFor="endTime" className="flex items-center gap-2 text-[#1E293B] font-medium mb-2">
                   <Clock className="w-4 h-4" />
                   End Time *
                 </label>
-                <select
+                <input
                   id="endTime"
+                  type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-[#3B82F6] focus:outline-none text-slate-900"
                   required
-                >
-                  <option value="">Select time</option>
-                  {timeSlots.slice(1).map((t) => (
-                    <option key={t} value={t}>{formatTime(t)}</option>
-                  ))}
-                </select>
+                />
               </div>
             </div>
 

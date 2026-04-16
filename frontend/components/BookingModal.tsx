@@ -20,6 +20,13 @@ interface SuggestedSlot {
   endTime: string;
 }
 
+interface SuggestedRoom {
+  _id: string;
+  name: string;
+  building: string;
+  capacity: number;
+}
+
 export function BookingModal({ onClose, preselectedRoom }: BookingModalProps) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
@@ -36,6 +43,7 @@ export function BookingModal({ onClose, preselectedRoom }: BookingModalProps) {
   const [checkingConflict, setCheckingConflict] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
   const [suggestedSlots, setSuggestedSlots] = useState<SuggestedSlot[]>([]);
+  const [suggestedRooms, setSuggestedRooms] = useState<SuggestedRoom[]>([]);
   const [noSlotsAvailable, setNoSlotsAvailable] = useState(false);
 
   // Get today's date in YYYY-MM-DD format for min attribute
@@ -71,6 +79,7 @@ export function BookingModal({ onClose, preselectedRoom }: BookingModalProps) {
     } else {
       setHasConflict(false);
       setSuggestedSlots([]);
+      setSuggestedRooms([]);
       setNoSlotsAvailable(false);
     }
   }, [selectedRoomId, selectedDate, startTime, endTime]);
@@ -118,6 +127,7 @@ export function BookingModal({ onClose, preselectedRoom }: BookingModalProps) {
       if (response.data.success) {
         setHasConflict(response.data.hasConflict);
         setSuggestedSlots(response.data.suggestedSlots || []);
+        setSuggestedRooms(response.data.suggestedRooms || []);
         setNoSlotsAvailable(response.data.noSlotsAvailable || false);
       }
     } catch (err) {
@@ -132,6 +142,15 @@ export function BookingModal({ onClose, preselectedRoom }: BookingModalProps) {
     setEndTime(slot.endTime);
     setHasConflict(false);
     setSuggestedSlots([]);
+    setSuggestedRooms([]);
+    setNoSlotsAvailable(false);
+  }
+
+  function selectSuggestedRoom(room: SuggestedRoom) {
+    setSelectedRoomId(room._id);
+    setHasConflict(false);
+    setSuggestedSlots([]);
+    setSuggestedRooms([]);
     setNoSlotsAvailable(false);
   }
 
@@ -178,6 +197,7 @@ export function BookingModal({ onClose, preselectedRoom }: BookingModalProps) {
       if (responseData?.hasConflict) {
         setHasConflict(true);
         setSuggestedSlots(responseData.suggestedSlots || []);
+        setSuggestedRooms(responseData.suggestedRooms || []);
         setNoSlotsAvailable(responseData.noSlotsAvailable || false);
         setError(responseData.message || 'This room is already booked at the selected time.');
       } else {
@@ -195,10 +215,8 @@ export function BookingModal({ onClose, preselectedRoom }: BookingModalProps) {
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
-          <h2 className="text-xl font-semibold text-[#1E293B] mb-2">Booking Submitted!</h2>
-          <p className="text-slate-600">
-            Your booking request has been submitted and is pending approval from an administrator.
-          </p>
+          <h2 className="text-xl font-semibold text-[#1E293B] mb-2">Booking Confirmed</h2>
+          <p className="text-slate-600">Your room booking has been saved successfully.</p>
         </div>
       </div>
     );
@@ -236,10 +254,29 @@ export function BookingModal({ onClose, preselectedRoom }: BookingModalProps) {
                 <AlertCircle className="w-5 h-5 text-red-600" />
                 <div>
                   <span className="text-red-700 font-medium">Booking Conflict Detected</span>
-                  <p className="text-red-600 text-sm">This room is already booked for this time slot.</p>
+                  <p className="text-red-600 text-sm">This room is already booked for the selected time.</p>
                 </div>
               </div>
-              
+
+              {suggestedRooms.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-red-200">
+                  <p className="text-slate-700 font-medium mb-2">Try another room at the same time:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedRooms.map((room) => (
+                      <button
+                        key={room._id}
+                        type="button"
+                        onClick={() => selectSuggestedRoom(room)}
+                        className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-left text-sm text-blue-700 transition-colors hover:bg-blue-50"
+                      >
+                        <span className="block font-medium">{room.name}</span>
+                        <span className="block text-xs text-blue-600">{room.building} • Capacity {room.capacity}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {noSlotsAvailable ? (
                 <div className="mt-3 pt-3 border-t border-red-200">
                   <p className="text-red-700 font-medium">No available time slots on this day for this room.</p>

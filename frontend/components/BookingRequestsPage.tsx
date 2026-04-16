@@ -103,8 +103,8 @@ export function BookingRequestsPage({ onNavigate }: BookingRequestsPageProps) {
     <Layout currentPage="booking-requests" onNavigate={onNavigate} title="Booking Requests">
       {/* Header */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-[#1E293B] mb-2">Student Booking Requests</h2>
-        <p className="text-slate-600">Review and manage room booking requests from students. (Teacher bookings are auto-approved)</p>
+        <h2 className="text-xl font-semibold text-[#1E293B] mb-2">Booking Requests</h2>
+        <p className="text-slate-600">Review and manage room booking requests.</p>
       </div>
 
       {/* Error Message */}

@@ -5,8 +5,6 @@ import { TimetablePage } from "./components/TimetablePage";
 import { RoomsPage } from "./components/RoomsPage";
 import { MyBookingsPage } from "./components/MyBookingsPage";
 import { PostSchedulePage } from "./components/PostSchedulePage";
-import { RequestTeacherPage } from "./components/RequestTeacherPage";
-import { TeacherRequestsPage } from "./components/TeacherRequestsPage";
 import { BookingRequestsPage } from "./components/BookingRequestsPage";
 import { ManageRoomsPage } from "./components/ManageRoomsPage";
 import { useState } from "react";
@@ -19,8 +17,6 @@ export type Page =
   | "rooms"
   | "my-bookings"
   | "post-schedule"
-  | "request-teacher"
-  | "teacher-requests"
   | "booking-requests"
   | "manage-rooms";
 
@@ -37,13 +33,13 @@ function AppContent() {
   }
 
   // Role-based page access
-  // Students: Dashboard, Timetable (read-only), Request Teacher Role
+  // Students: Dashboard, Timetable (read-only)
   // Teachers: Dashboard, Timetable, Rooms, My Bookings, Post Schedule
-  // Admin: Dashboard, Teacher Requests, Manage Rooms
+  // Admin: Dashboard, Booking Requests, Manage Rooms
   const canAccessPage = (page: Page): boolean => {
-    const studentPages: Page[] = ["dashboard", "timetable", "request-teacher"];
+    const studentPages: Page[] = ["dashboard", "timetable"];
     const teacherPages: Page[] = ["dashboard", "timetable", "rooms", "my-bookings", "post-schedule"];
-    const adminPages: Page[] = ["dashboard", "teacher-requests", "manage-rooms"];
+    const adminPages: Page[] = ["dashboard", "booking-requests", "manage-rooms"];
 
     switch (user.role) {
       case "student":
@@ -75,10 +71,6 @@ function AppContent() {
         return <MyBookingsPage onNavigate={setCurrentPage} />;
       case "post-schedule":
         return user.role === "teacher" ? <PostSchedulePage onNavigate={setCurrentPage} /> : null;
-      case "request-teacher":
-        return user.role === "student" ? <RequestTeacherPage onNavigate={setCurrentPage} /> : null;
-      case "teacher-requests":
-        return user.role === "admin" ? <TeacherRequestsPage onNavigate={setCurrentPage} /> : null;
       case "booking-requests":
         return user.role === "admin" ? <BookingRequestsPage onNavigate={setCurrentPage} /> : null;
       case "manage-rooms":

@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const Schedule = require('../models/Schedule');
 const Booking = require('../models/Booking');
-const TeacherRequest = require('../models/TeacherRequest');
 const Room = require('../models/Room');
 const { authenticate } = require('../middleware/auth');
 
@@ -39,13 +38,11 @@ router.get('/stats', authenticate, async (req, res, next) => {
     }
     else if (req.user.role === 'admin') {
       // Admin stats
-      const pendingTeacherRequests = await TeacherRequest.countDocuments({ status: 'pending' });
       const pendingBookings = await Booking.countDocuments({ status: 'pending' });
       const totalRooms = await Room.countDocuments();
       const availableRooms = await Room.countDocuments({ status: 'available' });
       const totalSchedules = await Schedule.countDocuments({ isActive: true });
 
-      stats.pendingTeacherRequests = pendingTeacherRequests;
       stats.pendingBookingRequests = pendingBookings;
       stats.totalRooms = totalRooms;
       stats.availableRooms = availableRooms;

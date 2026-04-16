@@ -20,8 +20,7 @@ exports.sendTokenResponse = (user, statusCode, res) => {
       email: user.email,
       role: user.role,
       department: user.department,
-      profilePhoto: user.profilePhoto,
-      teacherRequestStatus: user.teacherRequestStatus
+      profilePhoto: user.profilePhoto
     }
   });
 };

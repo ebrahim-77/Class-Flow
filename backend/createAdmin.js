@@ -48,9 +48,8 @@ const createAdmin = async () => {
     console.log('\n🔐 Please change the password after first login!');
     console.log('\n🎯 You can now:');
     console.log('   1. Login at http://localhost:5174');
-    console.log('   2. Approve teacher requests');
-    console.log('   3. Manage rooms');
-    console.log('   4. Approve booking requests');
+    console.log('   2. Manage rooms');
+    console.log('   3. Review booking requests');
 
     process.exit(0);
   } catch (error) {

@@ -40,10 +40,10 @@ api.interceptors.response.use(
 
 // Authentication APIs
 export const authAPI = {
-  register: (data: { name: string; email: string; password: string; department?: string; profilePhoto?: string }) =>
+  register: (data: { name: string; email: string; password: string; role: 'student' | 'teacher' | 'admin' }) =>
     api.post('/auth/register', data),
   
-  login: (data: { email: string; password: string }) =>
+  login: (data: { email: string; password: string; role: 'student' | 'teacher' | 'admin' }) =>
     api.post('/auth/login', data),
   
   getMe: () =>
@@ -63,27 +63,6 @@ export const userAPI = {
   
   uploadPhoto: (id: string, photo: string) =>
     api.post(`/users/${id}/upload-photo`, { photo })
-};
-
-// Teacher Request APIs
-export const teacherRequestAPI = {
-  submit: (data: { department: string; reason: string }) =>
-    api.post('/teacher-requests', data),
-  
-  getAll: (status?: string) =>
-    api.get('/teacher-requests', { params: { status } }),
-  
-  getMyRequest: () =>
-    api.get('/teacher-requests/my-request'),
-  
-  approve: (id: string) =>
-    api.put(`/teacher-requests/${id}/approve`),
-  
-  reject: (id: string) =>
-    api.put(`/teacher-requests/${id}/reject`),
-  
-  getStats: () =>
-    api.get('/teacher-requests/stats')
 };
 
 // Room APIs
@@ -108,11 +87,13 @@ export const roomAPI = {
 };
 
 // Schedule APIs
+type ScheduleDegree = 'BSc Engg' | 'MSc Engg (Regular)' | 'MSc Engg (Evening)' | 'PhD Program';
+
 export const scheduleAPI = {
-  create: (data: any) =>
+  create: (data: { courseName: string; roomId: string; degree: ScheduleDegree; batch?: number; date: string; startTime: string; endTime: string; color?: string; semester?: string; academicYear?: string }) =>
     api.post('/schedules', data),
   
-  getAll: (filters?: { day?: string; roomId?: string; teacherId?: string }) =>
+  getAll: (filters?: { day?: string; roomId?: string; teacherId?: string; degree?: ScheduleDegree; batch?: number }) =>
     api.get('/schedules', { params: filters }),
   
   getTimetable: (startDate?: string, endDate?: string) =>
@@ -124,7 +105,7 @@ export const scheduleAPI = {
   getUpcoming: () =>
     api.get('/schedules/upcoming'),
   
-  update: (id: string, data: any) =>
+  update: (id: string, data: { courseName: string; roomId: string; degree: ScheduleDegree; batch?: number; date: string; startTime: string; endTime: string; color?: string; semester?: string; academicYear?: string }) =>
     api.put(`/schedules/${id}`, data),
   
   delete: (id: string) =>

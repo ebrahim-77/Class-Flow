@@ -3,7 +3,6 @@ import type { Page } from '../App';
 import { Clock, CheckCircle, XCircle, MapPin, Calendar, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { bookingAPI } from '../src/api';
-import { useAuth } from '../context/AuthContext';
 
 interface MyBookingsPageProps {
   onNavigate: (page: Page) => void;
@@ -20,7 +19,6 @@ interface Booking {
 }
 
 export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
-  const { user } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -99,11 +97,7 @@ export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-xl font-semibold text-[#1E293B] mb-2">My Room Bookings</h2>
-          <p className="text-slate-600">
-            {user?.role === 'teacher' 
-              ? 'Your bookings are automatically approved. They appear in the timetable immediately.' 
-              : 'View and manage your room booking requests.'}
-          </p>
+          <p className="text-slate-600">View your bookings and manage upcoming room reservations.</p>
         </div>
         <button
           onClick={() => onNavigate('rooms')}

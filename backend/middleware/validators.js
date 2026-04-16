@@ -6,6 +6,7 @@ exports.validateRegister = (req, res, next) => {
     name: Joi.string().required().trim(),
     email: Joi.string().email().required().trim().lowercase(),
     password: Joi.string().min(6).required(),
+    role: Joi.string().valid('student', 'teacher', 'admin').required(),
     department: Joi.string().trim().optional(),
     profilePhoto: Joi.string().optional().allow(null, '')
   });
@@ -24,24 +25,8 @@ exports.validateRegister = (req, res, next) => {
 exports.validateLogin = (req, res, next) => {
   const schema = Joi.object({
     email: Joi.string().email().required().trim().lowercase(),
-    password: Joi.string().required()
-  });
-
-  const { error } = schema.validate(req.body);
-  if (error) {
-    return res.status(400).json({
-      success: false,
-      message: error.details[0].message
-    });
-  }
-  next();
-};
-
-// Teacher request validation
-exports.validateTeacherRequest = (req, res, next) => {
-  const schema = Joi.object({
-    department: Joi.string().required().trim(),
-    reason: Joi.string().required().trim().min(10)
+    password: Joi.string().required(),
+    role: Joi.string().valid('student', 'teacher', 'admin').required()
   });
 
   const { error } = schema.validate(req.body);
@@ -77,9 +62,17 @@ exports.validateRoom = (req, res, next) => {
 
 // Schedule validation
 exports.validateSchedule = (req, res, next) => {
+  const degreeRequiresBatch = Joi.valid('BSc Engg', 'MSc Engg (Regular)', 'MSc Engg (Evening)');
+
   const schema = Joi.object({
     courseName: Joi.string().required().trim(),
     roomId: Joi.string().required(),
+    degree: Joi.string().valid('BSc Engg', 'MSc Engg (Regular)', 'MSc Engg (Evening)', 'PhD Program').required(),
+    batch: Joi.when('degree', {
+      is: degreeRequiresBatch,
+      then: Joi.number().integer().required(),
+      otherwise: Joi.number().integer().optional().allow(null)
+    }),
     date: Joi.date().required(),
     day: Joi.string().valid('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday').optional(),
     startTime: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).required(),

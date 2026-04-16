@@ -17,17 +17,16 @@ interface MenuItem {
 export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const { user, logout } = useAuth();
 
-  // Students: Dashboard, Timetable (read-only), Request Teacher Role
+  // Students: Dashboard, Timetable (read-only)
   // Teachers: Dashboard, Timetable, Post Schedule, Rooms, My Bookings
-  // Admin: Dashboard, Teacher Requests, Manage Rooms
+  // Admin: Dashboard, Booking Requests, Manage Rooms
   const menuItems: MenuItem[] = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['student', 'teacher', 'admin'] },
     { id: 'timetable', icon: Calendar, label: 'Timetable', roles: ['student', 'teacher'] },
     { id: 'post-schedule', icon: Plus, label: 'Post Schedule', roles: ['teacher'] },
     { id: 'rooms', icon: DoorOpen, label: 'Rooms', roles: ['teacher'] },
     { id: 'my-bookings', icon: BookOpen, label: 'My Bookings', roles: ['teacher'] },
-    { id: 'request-teacher', icon: UserCheck, label: 'Request Teacher Role', roles: ['student'] },
-    { id: 'teacher-requests', icon: UserCheck, label: 'Teacher Requests', roles: ['admin'] },
+    { id: 'booking-requests', icon: UserCheck, label: 'Booking Requests', roles: ['admin'] },
     { id: 'manage-rooms', icon: Settings, label: 'Manage Rooms', roles: ['admin'] },
   ];
 

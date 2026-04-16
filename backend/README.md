@@ -25,6 +25,7 @@ cp .env.example .env
 ```
 
 Edit `.env`:
+
 ```
 NODE_ENV=development
 PORT=5000
@@ -44,6 +45,7 @@ node seed.js
 ```
 
 This creates:
+
 - **Admin**: admin@classflow.com / admin123
 - **Student**: jamil@student.com / password123
 - **Teacher**: sarah@teacher.com / password123
@@ -52,11 +54,13 @@ This creates:
 ### 5. Start Server
 
 Development mode:
+
 ```bash
 npm run dev
 ```
 
 Production mode:
+
 ```bash
 npm start
 ```
@@ -66,24 +70,19 @@ Server will run on: `http://localhost:5000`
 ## API Endpoints
 
 ### Authentication
+
 - `POST /api/auth/register` - Register new user
 - `POST /api/auth/login` - Login user
 - `GET /api/auth/me` - Get current user
 - `POST /api/auth/logout` - Logout user
 
 ### Users
+
 - `GET /api/users/:id` - Get user by ID
 - `PUT /api/users/:id` - Update user
 
-### Teacher Requests
-- `POST /api/teacher-requests` - Submit request (Student)
-- `GET /api/teacher-requests` - Get all requests (Admin)
-- `GET /api/teacher-requests/my-request` - Get my request
-- `PUT /api/teacher-requests/:id/approve` - Approve request (Admin)
-- `PUT /api/teacher-requests/:id/reject` - Reject request (Admin)
-- `GET /api/teacher-requests/stats` - Get statistics (Admin)
-
 ### Rooms
+
 - `POST /api/rooms` - Create room (Admin)
 - `GET /api/rooms` - Get all rooms
 - `GET /api/rooms/:id` - Get room by ID
@@ -92,6 +91,7 @@ Server will run on: `http://localhost:5000`
 - `GET /api/rooms/available/list` - Get available rooms
 
 ### Schedules
+
 - `POST /api/schedules` - Create schedule (Teacher)
 - `GET /api/schedules` - Get all schedules
 - `GET /api/schedules/my-classes` - Get my classes
@@ -101,6 +101,7 @@ Server will run on: `http://localhost:5000`
 - `POST /api/schedules/check-conflict` - Check conflicts
 
 ### Bookings
+
 - `POST /api/bookings` - Create booking (Student/Teacher)
 - `GET /api/bookings` - Get all bookings (Admin)
 - `GET /api/bookings/my-bookings` - Get my bookings
@@ -111,17 +112,20 @@ Server will run on: `http://localhost:5000`
 - `GET /api/bookings/stats/summary` - Get statistics (Admin)
 
 ### Dashboard
+
 - `GET /api/dashboard/stats` - Get dashboard stats (role-based)
 - `GET /api/dashboard/upcoming-classes` - Get upcoming classes
 
 ## Testing
 
 Test the API with:
+
 - Postman
 - Thunder Client (VS Code extension)
 - curl commands
 
 Example login:
+
 ```bash
 curl -X POST http://localhost:5000/api/auth/login \
   -H "Content-Type: application/json" \
@@ -136,14 +140,12 @@ backend/
 │   └── db.js              # Database connection
 ├── models/
 │   ├── User.js            # User model
-│   ├── TeacherRequest.js  # Teacher request model
 │   ├── Room.js            # Room model
 │   ├── Schedule.js        # Schedule model
 │   └── Booking.js         # Booking model
 ├── routes/
 │   ├── auth.js            # Authentication routes
 │   ├── users.js           # User routes
-│   ├── teacherRequests.js # Teacher request routes
 │   ├── rooms.js           # Room routes
 │   ├── schedules.js       # Schedule routes
 │   ├── bookings.js        # Booking routes
