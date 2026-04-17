@@ -1,6 +1,8 @@
-import { Search, Camera, Loader2, X, User, Check } from 'lucide-react';
+import { Search, Camera, Loader2, X, User, Check, Bell, Megaphone, Send } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
-import { useState, useRef } from 'react';
+import { useNotifications } from '../context/NotificationContext';
+import { useState, useRef, useEffect } from 'react';
 
 interface TopBarProps {
   title?: string;
@@ -8,6 +10,7 @@ interface TopBarProps {
 
 export function TopBar({ title }: TopBarProps) {
   const { user, updateProfile } = useAuth();
+  const { notifications, unreadCount, loading, markAsRead, markAllAsRead, createAdminNotification } = useNotifications();
   
   // Profile edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -16,6 +19,11 @@ export function TopBar({ title }: TopBarProps) {
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState('');
   const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [showAdminComposer, setShowAdminComposer] = useState(false);
+  const [adminMessage, setAdminMessage] = useState('');
+  const [sendingAdminMessage, setSendingAdminMessage] = useState(false);
+  const [adminStatus, setAdminStatus] = useState('');
 
   // Profile edit modal handlers
   const openEditModal = () => {
@@ -31,6 +39,207 @@ export function TopBar({ title }: TopBarProps) {
     setEditPhoto(null);
     setEditError('');
   };
+
+  const formatNotificationTime = (createdAt?: string) => {
+    if (!createdAt) {
+      return 'Unknown time';
+    }
+
+    return new Date(createdAt).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  };
+
+  const openNotificationsModal = async () => {
+    setShowNotificationModal(true);
+    await markAllAsRead();
+  };
+
+  const closeNotificationsModal = () => {
+    setShowNotificationModal(false);
+  };
+
+  const closeAdminComposer = () => {
+    setShowAdminComposer(false);
+  };
+
+  useEffect(() => {
+    if (!showNotificationModal && !showAdminComposer) {
+      document.body.style.overflow = 'auto';
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (showAdminComposer) {
+          closeAdminComposer();
+          return;
+        }
+        closeNotificationsModal();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow || 'auto';
+    };
+  }, [showNotificationModal, showAdminComposer]);
+
+  const handleNotificationClick = async (id: string, isRead: boolean, scheduleId?: string) => {
+    if (!isRead) {
+      await markAsRead(id);
+    }
+
+    if (scheduleId && user?.role === 'student') {
+      window.history.pushState({}, '', `/dashboard?scheduleId=${scheduleId}`);
+      window.dispatchEvent(new CustomEvent('classflow:schedule-focus', { detail: { scheduleId } }));
+      window.dispatchEvent(new CustomEvent('classflow:navigate-dashboard'));
+      setShowNotificationModal(false);
+      return;
+    }
+
+    setShowNotificationModal(false);
+  };
+
+  const handleAdminSend = async () => {
+    const message = adminMessage.trim();
+    if (!message) {
+      setAdminStatus('Message is required.');
+      return;
+    }
+
+    setSendingAdminMessage(true);
+    setAdminStatus('');
+
+    const success = await createAdminNotification(message);
+    if (success) {
+      setAdminMessage('');
+      setAdminStatus('Notification sent.');
+    } else {
+      setAdminStatus('Failed to send notification.');
+    }
+
+    setSendingAdminMessage(false);
+  };
+
+  const canSeeBell = user?.role === 'teacher' || user?.role === 'student';
+  const isAdmin = user?.role === 'admin';
+
+  const notificationModal = showNotificationModal && canSeeBell
+    ? createPortal(
+        <div
+          className="notification-overlay-root fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={closeNotificationsModal}
+        >
+          <div
+            className="notification-modal-shell bg-white rounded-xl shadow-xl w-[90%] max-w-md max-h-[80vh] overflow-y-auto p-4"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-lg font-semibold text-slate-900">Notifications</h3>
+              <button
+                type="button"
+                onClick={closeNotificationsModal}
+                className="rounded-lg p-2 hover:bg-slate-100 transition-colors"
+                aria-label="Close notifications"
+              >
+                <X className="h-5 w-5 text-slate-600" />
+              </button>
+            </div>
+
+            <div className="pt-3">
+              {loading ? (
+                <p className="py-10 text-center text-sm text-slate-500">Loading notifications...</p>
+              ) : notifications.length === 0 ? (
+                <p className="py-10 text-center text-sm text-slate-500">No notifications</p>
+              ) : (
+                <ul className="space-y-2">
+                  {notifications
+                    .filter((notification) => Boolean(notification?._id))
+                    .map((notification) => (
+                      <li key={notification._id}>
+                        <button
+                          type="button"
+                          onClick={() => handleNotificationClick(notification._id, notification.isRead, notification.scheduleId)}
+                          className={`w-full rounded-xl border px-4 py-4 text-left transition-colors active:scale-[0.99] ${
+                            notification.isRead ? 'border-slate-200 bg-white' : 'border-blue-200 bg-blue-50/70'
+                          }`}
+                        >
+                          <p className={`text-sm ${notification.isRead ? 'font-normal text-slate-800' : 'font-semibold text-slate-900'}`}>
+                            {notification.message || 'Notification'}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">{formatNotificationTime(notification.createdAt)}</p>
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
+
+  const adminComposerModal = showAdminComposer && isAdmin
+    ? createPortal(
+        <div
+          className="notification-overlay-root fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={closeAdminComposer}
+        >
+          <div
+            className="notification-modal-shell bg-white rounded-xl shadow-xl w-[90%] max-w-md max-h-[80vh] overflow-y-auto p-4"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-lg font-semibold text-slate-900">Send Notification</h3>
+              <button
+                type="button"
+                onClick={closeAdminComposer}
+                className="rounded-lg p-2 hover:bg-slate-100 transition-colors"
+                aria-label="Close send notification modal"
+              >
+                <X className="h-5 w-5 text-slate-600" />
+              </button>
+            </div>
+
+            <div className="space-y-4 pt-3">
+              <textarea
+                value={adminMessage}
+                onChange={(e) => setAdminMessage(e.target.value)}
+                rows={6}
+                placeholder="Write a notification for users"
+                className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:border-[#3B82F6] focus:outline-none"
+              />
+
+              {adminStatus && (
+                <p className={`text-sm ${adminStatus === 'Notification sent.' ? 'text-green-600' : 'text-red-600'}`}>
+                  {adminStatus}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleAdminSend}
+                disabled={sendingAdminMessage}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#3B82F6] px-4 py-3 text-sm font-medium text-white hover:bg-[#2563EB] disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+                {sendingAdminMessage ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
 
   const handleEditPhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -114,8 +323,44 @@ export function TopBar({ title }: TopBarProps) {
           )}
         </div>
 
-        {/* Right Side - Profile Only */}
+        {/* Right Side - Actions + Profile */}
         <div className="flex items-center gap-6">
+          {canSeeBell && (
+            <div>
+              <button
+                type="button"
+                onClick={openNotificationsModal}
+                className="relative p-2 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Open notifications"
+              >
+                <Bell className="w-5 h-5 text-slate-600" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+            </div>
+          )}
+
+          {isAdmin && (
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdminStatus('');
+                  setShowAdminComposer((prev) => !prev);
+                }}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <Megaphone className="w-4 h-4" />
+                Notify
+              </button>
+
+            </div>
+          )}
+
           {/* Profile - clickable to open edit modal */}
           <div 
             className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded-xl px-3 py-2 transition-colors"
@@ -144,6 +389,10 @@ export function TopBar({ title }: TopBarProps) {
           </div>
         </div>
       </div>
+
+      {notificationModal}
+
+      {adminComposerModal}
 
       {/* Profile Edit Modal */}
       {showEditModal && (

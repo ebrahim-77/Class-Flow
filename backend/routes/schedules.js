@@ -4,6 +4,7 @@ const Schedule = require('../models/Schedule');
 const Booking = require('../models/Booking');
 const Room = require('../models/Room');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { authenticate, authorize } = require('../middleware/auth');
 const { validateSchedule } = require('../middleware/validators');
 
@@ -274,6 +275,19 @@ router.post('/', authenticate, authorize('teacher'), validateSchedule, async (re
       semester,
       academicYear
     });
+
+    try {
+      await Notification.create({
+        message: `New class scheduled: ${courseName}`,
+        type: 'schedule',
+        createdBy: req.user.id,
+        targetRole: 'student',
+        scheduleId: schedule._id,
+        readBy: []
+      });
+    } catch (notificationError) {
+      console.error('Failed to create schedule notification:', notificationError);
+    }
 
     res.status(201).json({
       success: true,

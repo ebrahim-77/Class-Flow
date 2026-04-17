@@ -1,4 +1,5 @@
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { NotificationProvider } from "./context/NotificationContext";
 import { LoginPage } from "./components/LoginPage";
 import { Dashboard } from "./components/Dashboard";
 import { TimetablePage } from "./components/TimetablePage";
@@ -6,7 +7,7 @@ import { RoomsPage } from "./components/RoomsPage";
 import { MyBookingsPage } from "./components/MyBookingsPage";
 import { PostSchedulePage } from "./components/PostSchedulePage";
 import { ManageRoomsPage } from "./components/ManageRoomsPage";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export type Page =
   | "login"
@@ -21,6 +22,15 @@ export type Page =
 function AppContent() {
   const { user, isAuthenticated } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>("login");
+
+  useEffect(() => {
+    const handleNavigateDashboard = () => {
+      setCurrentPage('dashboard');
+    };
+
+    window.addEventListener('classflow:navigate-dashboard', handleNavigateDashboard as EventListener);
+    return () => window.removeEventListener('classflow:navigate-dashboard', handleNavigateDashboard as EventListener);
+  }, []);
 
   // Redirect to login if not authenticated
   if (!isAuthenticated || !user) {
@@ -86,7 +96,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
     </AuthProvider>
   );
 }

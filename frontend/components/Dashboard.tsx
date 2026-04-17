@@ -1,7 +1,7 @@
 import { Calendar, Clock, MapPin, User, Building } from 'lucide-react';
 import { Layout } from './Layout';
 import type { Page } from '../App';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { dashboardAPI, scheduleAPI } from '../src/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -69,6 +69,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [now, setNow] = useState(Date.now());
   const [selectedDegree, setSelectedDegree] = useState('');
   const [selectedBatch, setSelectedBatch] = useState('');
+  const [highlightedScheduleId, setHighlightedScheduleId] = useState('');
+  const highlightedRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (user?.role === 'admin') {
@@ -77,6 +79,32 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       fetchSchedules();
     }
   }, [user?.role]);
+
+  useEffect(() => {
+    const syncHighlightFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      setHighlightedScheduleId(params.get('scheduleId') || '');
+    };
+
+    syncHighlightFromUrl();
+    window.addEventListener('popstate', syncHighlightFromUrl);
+
+    const handleScheduleFocus = (event: Event) => {
+      const customEvent = event as CustomEvent<{ scheduleId?: string }>;
+      const scheduleId = customEvent.detail?.scheduleId || '';
+      if (scheduleId) {
+        setHighlightedScheduleId(scheduleId);
+        window.history.replaceState({}, '', `${window.location.pathname}?scheduleId=${scheduleId}`);
+      }
+    };
+
+    window.addEventListener('classflow:schedule-focus', handleScheduleFocus as EventListener);
+
+    return () => {
+      window.removeEventListener('popstate', syncHighlightFromUrl);
+      window.removeEventListener('classflow:schedule-focus', handleScheduleFocus as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -190,6 +218,20 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       if (byDate !== 0) return byDate;
       return b.startTime.localeCompare(a.startTime);
     });
+
+  useEffect(() => {
+    if (!highlightedScheduleId) return;
+
+    const highlightedElement = highlightedRef.current;
+    if (!highlightedElement) return;
+
+    highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const timer = window.setTimeout(() => {
+      window.history.replaceState({}, '', window.location.pathname);
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedScheduleId, upcomingSchedules, pastSchedules]);
 
   if (user?.role === 'admin') {
     return (
@@ -320,7 +362,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             ) : (
               <div className="space-y-3">
                 {upcomingSchedules.map((schedule) => (
-                  <div key={schedule._id} className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                  <div
+                    key={schedule._id}
+                    ref={schedule._id === highlightedScheduleId ? highlightedRef : undefined}
+                    className={`rounded-2xl border p-4 shadow-sm transition-all ${
+                      schedule._id === highlightedScheduleId
+                        ? 'border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-200'
+                        : 'border-blue-100 bg-white'
+                    }`}
+                  >
                     <h3 className="text-base font-bold text-[#1E293B]">{schedule.courseName}</h3>
                     <p className="mt-1 text-sm text-slate-600">{formatDegreeBatch(schedule)}</p>
                     <div className="mt-3 space-y-2 text-sm text-slate-600">
@@ -367,7 +417,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             ) : (
               <div className="space-y-3">
                 {pastSchedules.map((schedule) => (
-                  <div key={schedule._id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                  <div
+                    key={schedule._id}
+                    ref={schedule._id === highlightedScheduleId ? highlightedRef : undefined}
+                    className={`rounded-2xl border p-4 shadow-sm transition-all ${
+                      schedule._id === highlightedScheduleId
+                        ? 'border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-200'
+                        : 'border-slate-200 bg-slate-50'
+                    }`}
+                  >
                     <h3 className="text-base font-bold text-[#1E293B]">{schedule.courseName}</h3>
                     <p className="mt-1 text-sm text-slate-600">{formatDegreeBatch(schedule)}</p>
                     <div className="mt-3 space-y-2 text-sm text-slate-600">

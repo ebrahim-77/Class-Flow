@@ -136,4 +136,19 @@ export const dashboardAPI = {
     api.get('/dashboard/upcoming-classes')
 };
 
+// Notification APIs
+export const notificationAPI = {
+  getAll: () =>
+    api.get('/notifications'),
+
+  markRead: (id: string) =>
+    api.patch(`/notifications/${id}/read`),
+
+  markAllRead: () =>
+    api.patch('/notifications/read-all'),
+
+  createAdmin: (message: string) =>
+    api.post('/notifications/admin', { message })
+};
+
 export default api;
