@@ -1,4 +1,4 @@
-import { LayoutDashboard, DoorOpen, Calendar, BookOpen, LogOut, Plus, UserCheck, Settings } from 'lucide-react';
+import { LayoutDashboard, DoorOpen, Calendar, BookOpen, LogOut, Plus, Settings } from 'lucide-react';
 import type { Page } from '../App';
 import { useAuth, type UserRole } from '../context/AuthContext';
 
@@ -19,14 +19,13 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
   // Students: Dashboard, Timetable (read-only)
   // Teachers: Dashboard, Timetable, Post Schedule, Rooms, My Bookings
-  // Admin: Dashboard, Booking Requests, Manage Rooms
+  // Admin: Dashboard, Manage Rooms
   const menuItems: MenuItem[] = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['student', 'teacher', 'admin'] },
     { id: 'timetable', icon: Calendar, label: 'Timetable', roles: ['student', 'teacher'] },
     { id: 'post-schedule', icon: Plus, label: 'Post Schedule', roles: ['teacher'] },
     { id: 'rooms', icon: DoorOpen, label: 'Rooms', roles: ['teacher'] },
     { id: 'my-bookings', icon: BookOpen, label: 'My Bookings', roles: ['teacher'] },
-    { id: 'booking-requests', icon: UserCheck, label: 'Booking Requests', roles: ['admin'] },
     { id: 'manage-rooms', icon: Settings, label: 'Manage Rooms', roles: ['admin'] },
   ];
 

@@ -83,7 +83,10 @@ export const roomAPI = {
     api.delete(`/rooms/${id}`),
   
   getAvailable: () =>
-    api.get('/rooms/available/list')
+    api.get('/rooms/available/list'),
+  
+  checkAvailability: (date: string, startTime: string, endTime: string) =>
+    api.get('/rooms/availability', { params: { date, startTime, endTime } })
 };
 
 // Schedule APIs
@@ -93,7 +96,7 @@ export const scheduleAPI = {
   create: (data: { courseName: string; roomId: string; degree: ScheduleDegree; batch?: number; date: string; startTime: string; endTime: string; color?: string; semester?: string; academicYear?: string }) =>
     api.post('/schedules', data),
   
-  getAll: (filters?: { day?: string; roomId?: string; teacherId?: string; degree?: ScheduleDegree; batch?: number; weekStart?: string; weekEnd?: string }) =>
+  getAll: (filters?: { day?: string; roomId?: string; teacherId?: string; degree?: ScheduleDegree; batch?: number; weekStart?: string; weekEnd?: string; date?: string }) =>
     api.get('/schedules', { params: filters }),
   
   getTimetable: (startDate?: string, endDate?: string) =>
@@ -119,27 +122,6 @@ export const scheduleAPI = {
 export const bookingAPI = {
   create: (data: { roomId: string; date: string; startTime: string; endTime: string; purpose: string }) =>
     api.post('/bookings', data),
-  
-  getAll: (status?: string) =>
-    api.get('/bookings', { params: { status } }),
-  
-  getMyBookings: () =>
-    api.get('/bookings/my-bookings'),
-  
-  getById: (id: string) =>
-    api.get(`/bookings/${id}`),
-  
-  approve: (id: string) =>
-    api.put(`/bookings/${id}/approve`),
-  
-  reject: (id: string) =>
-    api.put(`/bookings/${id}/reject`),
-  
-  cancel: (id: string) =>
-    api.put(`/bookings/${id}/cancel`),
-  
-  getStats: () =>
-    api.get('/bookings/stats/summary'),
   
   checkConflict: (data: { roomId: string; date: string; startTime: string; endTime: string; excludeId?: string }) =>
     api.post('/bookings/check-conflict', data)

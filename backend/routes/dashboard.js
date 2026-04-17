@@ -38,15 +38,23 @@ router.get('/stats', authenticate, async (req, res, next) => {
     }
     else if (req.user.role === 'admin') {
       // Admin stats
-      const pendingBookings = await Booking.countDocuments({ status: 'pending' });
       const totalRooms = await Room.countDocuments();
-      const availableRooms = await Room.countDocuments({ status: 'available' });
       const totalSchedules = await Schedule.countDocuments({ isActive: true });
+      const totalTeachers = await User.countDocuments({ role: 'teacher' });
 
-      stats.pendingBookingRequests = pendingBookings;
+      const mostUsedRoomResult = await Schedule.aggregate([
+        { $match: { isActive: true, roomName: { $exists: true, $ne: '' } } },
+        { $group: { _id: '$roomName', usageCount: { $sum: 1 } } },
+        { $sort: { usageCount: -1, _id: 1 } },
+        { $limit: 1 }
+      ]);
+
+      const mostUsedRoom = mostUsedRoomResult.length > 0 ? mostUsedRoomResult[0]._id : 'N/A';
+
       stats.totalRooms = totalRooms;
-      stats.availableRooms = availableRooms;
       stats.totalSchedules = totalSchedules;
+      stats.totalTeachers = totalTeachers;
+      stats.mostUsedRoom = mostUsedRoom;
     }
 
     res.json({

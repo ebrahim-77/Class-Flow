@@ -5,7 +5,6 @@ import { TimetablePage } from "./components/TimetablePage";
 import { RoomsPage } from "./components/RoomsPage";
 import { MyBookingsPage } from "./components/MyBookingsPage";
 import { PostSchedulePage } from "./components/PostSchedulePage";
-import { BookingRequestsPage } from "./components/BookingRequestsPage";
 import { ManageRoomsPage } from "./components/ManageRoomsPage";
 import { useState } from "react";
 
@@ -17,7 +16,6 @@ export type Page =
   | "rooms"
   | "my-bookings"
   | "post-schedule"
-  | "booking-requests"
   | "manage-rooms";
 
 function AppContent() {
@@ -35,11 +33,11 @@ function AppContent() {
   // Role-based page access
   // Students: Dashboard, Timetable (read-only)
   // Teachers: Dashboard, Timetable, Rooms, My Bookings, Post Schedule
-  // Admin: Dashboard, Booking Requests, Manage Rooms
+  // Admin: Dashboard, Manage Rooms
   const canAccessPage = (page: Page): boolean => {
     const studentPages: Page[] = ["dashboard", "timetable"];
     const teacherPages: Page[] = ["dashboard", "timetable", "rooms", "my-bookings", "post-schedule"];
-    const adminPages: Page[] = ["dashboard", "booking-requests", "manage-rooms"];
+    const adminPages: Page[] = ["dashboard", "manage-rooms"];
 
     switch (user.role) {
       case "student":
@@ -71,8 +69,6 @@ function AppContent() {
         return <MyBookingsPage onNavigate={setCurrentPage} />;
       case "post-schedule":
         return user.role === "teacher" ? <PostSchedulePage onNavigate={setCurrentPage} /> : null;
-      case "booking-requests":
-        return user.role === "admin" ? <BookingRequestsPage onNavigate={setCurrentPage} /> : null;
       case "manage-rooms":
         return user.role === "admin" ? <ManageRoomsPage onNavigate={setCurrentPage} /> : null;
       default:

@@ -289,7 +289,7 @@ router.post('/', authenticate, authorize('teacher'), validateSchedule, async (re
 // @access  Private
 router.get('/', authenticate, async (req, res, next) => {
   try {
-    const { day, roomId, teacherId, degree, batch, weekStart, weekEnd } = req.query;
+    const { day, roomId, teacherId, degree, batch, weekStart, weekEnd, date } = req.query;
     const filter = { isActive: true };
 
     if (day) filter.day = day;
@@ -301,7 +301,19 @@ router.get('/', authenticate, async (req, res, next) => {
       filter.batch = Number(batch);
     }
 
-    if (weekStart && weekEnd) {
+    // Supports day-specific reads via ?date=YYYY-MM-DD
+    if (date) {
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      filter.date = {
+        $gte: startOfDay,
+        $lte: endOfDay
+      };
+    } else if (weekStart && weekEnd) {
       filter.date = {
         $gte: new Date(weekStart),
         $lte: new Date(weekEnd)
@@ -313,10 +325,19 @@ router.get('/', authenticate, async (req, res, next) => {
       .populate('roomId', 'name building capacity')
       .sort({ date: 1, startTime: 1 });
 
+    const formattedSchedules = schedules.map((schedule) => {
+      const scheduleObj = schedule.toObject();
+      return {
+        ...scheduleObj,
+        teacherName: scheduleObj.teacherName || scheduleObj.teacherId?.name || 'Unknown teacher',
+        room: scheduleObj.roomName || scheduleObj.roomId?.name || 'Unknown room'
+      };
+    });
+
     res.json({
       success: true,
-      count: schedules.length,
-      schedules
+      count: formattedSchedules.length,
+      schedules: formattedSchedules
     });
   } catch (error) {
     next(error);

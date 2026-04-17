@@ -2,7 +2,8 @@ import { Calendar, Clock, MapPin, User, Building } from 'lucide-react';
 import { Layout } from './Layout';
 import type { Page } from '../App';
 import { useState, useEffect } from 'react';
-import { scheduleAPI } from '../src/api';
+import { dashboardAPI, scheduleAPI } from '../src/api';
+import { useAuth } from '../context/AuthContext';
 
 interface DashboardProps {
   onNavigate: (page: Page) => void;
@@ -26,6 +27,13 @@ interface ScheduleItem {
   };
 }
 
+interface AdminStats {
+  totalRooms: number;
+  totalSchedules: number;
+  totalTeachers: number;
+  mostUsedRoom: string;
+}
+
 const degreeOptions = ['BSc Engg', 'MSc Engg (Regular)', 'MSc Engg (Evening)', 'PhD Program'] as const;
 
 const degreeNeedsBatch = (degree: string) => degree === 'BSc Engg' || degree === 'MSc Engg (Regular)' || degree === 'MSc Engg (Evening)';
@@ -47,17 +55,28 @@ function formatDegreeBatch(schedule: ScheduleItem) {
 }
 
 export function Dashboard({ onNavigate }: DashboardProps) {
+  const { user } = useAuth();
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [filteredSchedules, setFilteredSchedules] = useState<ScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [adminStats, setAdminStats] = useState<AdminStats>({
+    totalRooms: 0,
+    totalSchedules: 0,
+    totalTeachers: 0,
+    mostUsedRoom: 'N/A'
+  });
   const [now, setNow] = useState(Date.now());
   const [selectedDegree, setSelectedDegree] = useState('');
   const [selectedBatch, setSelectedBatch] = useState('');
 
   useEffect(() => {
-    fetchSchedules();
-  }, []);
+    if (user?.role === 'admin') {
+      fetchAdminStats();
+    } else {
+      fetchSchedules();
+    }
+  }, [user?.role]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -85,6 +104,28 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       setError('Failed to load schedules.');
       setSchedules([]);
       setFilteredSchedules([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchAdminStats() {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await dashboardAPI.getStats();
+      if (response.data.success) {
+        const stats = response.data.stats || {};
+        setAdminStats({
+          totalRooms: stats.totalRooms || 0,
+          totalSchedules: stats.totalSchedules || 0,
+          totalTeachers: stats.totalTeachers || 0,
+          mostUsedRoom: stats.mostUsedRoom || 'N/A'
+        });
+      }
+    } catch (fetchError) {
+      console.error('Failed to fetch admin stats:', fetchError);
+      setError('Failed to load analytics.');
     } finally {
       setLoading(false);
     }
@@ -149,6 +190,61 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       if (byDate !== 0) return byDate;
       return b.startTime.localeCompare(a.startTime);
     });
+
+  if (user?.role === 'admin') {
+    return (
+      <Layout currentPage="dashboard" onNavigate={onNavigate} title="Dashboard">
+        <div className="mx-auto w-full max-w-[720px] px-4 pb-6">
+          <div className="space-y-6">
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+
+            {loading ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-sm text-slate-600">Loading analytics...</p>
+              </div>
+            ) : (
+              <section className="space-y-4">
+                <h2 className="text-lg font-semibold text-[#1E293B]">Analytics</h2>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-sm text-slate-600">Total Rooms</p>
+                    <p className="mt-2 text-3xl font-bold text-[#1E293B]">{adminStats.totalRooms}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-sm text-slate-600">Total Schedules</p>
+                    <p className="mt-2 text-3xl font-bold text-[#1E293B]">{adminStats.totalSchedules}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-sm text-slate-600">Most Used Room</p>
+                    <p className="mt-2 text-3xl font-bold text-[#1E293B]">{adminStats.mostUsedRoom}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-sm text-slate-600">Total Teachers</p>
+                    <p className="mt-2 text-3xl font-bold text-[#1E293B]">{adminStats.totalTeachers}</p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-[#1E293B]">Quick Actions</h2>
+              <button
+                type="button"
+                onClick={() => onNavigate('manage-rooms')}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50 md:w-auto"
+              >
+                Manage Rooms
+              </button>
+            </section>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout currentPage="dashboard" onNavigate={onNavigate} title="Dashboard">

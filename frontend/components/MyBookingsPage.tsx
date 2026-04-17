@@ -1,110 +1,161 @@
 import { Layout } from './Layout';
 import type { Page } from '../App';
-import { Clock, CheckCircle, XCircle, MapPin, Calendar, Trash2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { bookingAPI } from '../src/api';
+import { Calendar, Clock, MapPin, Search, User, AlertCircle } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { scheduleAPI } from '../src/api';
 
 interface MyBookingsPageProps {
   onNavigate: (page: Page) => void;
 }
 
-interface Booking {
+interface Schedule {
   _id: string;
+  courseName: string;
+  teacherName?: string;
+  teacherId?: { name?: string };
   roomName: string;
+  roomId?: { name?: string };
   date: string;
   startTime: string;
   endTime: string;
-  purpose: string;
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
 }
 
 export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState('');
 
-  useEffect(() => {
-    fetchBookings();
-  }, []);
+  const resolveRoomName = (schedule: Schedule) => {
+    return schedule.roomName || schedule.roomId?.name || 'Unknown room';
+  };
 
-  const fetchBookings = async () => {
+  const resolveTeacherName = (schedule: Schedule) => {
+    return schedule.teacherName || schedule.teacherId?.name || 'Unknown teacher';
+  };
+
+  const selectedDateType = useMemo(() => {
+    if (!selectedDate) return 'none';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const picked = new Date(selectedDate);
+    picked.setHours(0, 0, 0, 0);
+
+    if (picked < today) return 'past';
+    if (picked > today) return 'future';
+    return 'today';
+  }, [selectedDate]);
+
+  const nowTime = useMemo(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  }, [hasSearched, selectedDate, searchLoading]);
+
+  const classifiedSchedules = useMemo(() => {
+    const upcoming: Schedule[] = [];
+    const past: Schedule[] = [];
+
+    if (selectedDateType === 'past') {
+      return { upcoming, past: [...schedules] };
+    }
+
+    if (selectedDateType === 'future') {
+      return { upcoming: [...schedules], past };
+    }
+
+    schedules.forEach((schedule) => {
+      if (schedule.startTime > nowTime) {
+        upcoming.push(schedule);
+      } else if (schedule.endTime < nowTime) {
+        past.push(schedule);
+      } else {
+        upcoming.push(schedule);
+      }
+    });
+
+    return { upcoming, past };
+  }, [schedules, selectedDateType, nowTime]);
+
+  const handleSearch = async () => {
+    setValidationError('');
+
+    if (!selectedDate) {
+      setValidationError('Please select a date');
+      return;
+    }
+
     try {
-      setLoading(true);
-      const response = await bookingAPI.getMyBookings();
-      setBookings(response.data.bookings);
+      setSearchLoading(true);
+      const response = await scheduleAPI.getAll({ date: selectedDate });
+      setSchedules(response.data.schedules || []);
       setError('');
-    } catch (err: any) {
-      console.error('Failed to fetch bookings:', err);
-      setError('Failed to load bookings');
+      setHasSearched(true);
+    } catch (err) {
+      console.error('Failed to fetch schedules:', err);
+      setError('Failed to load schedules');
+      setHasSearched(true);
     } finally {
-      setLoading(false);
+      setSearchLoading(false);
     }
   };
-
-  const handleCancel = async (id: string) => {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
-    
-    try {
-      await bookingAPI.cancel(id);
-      fetchBookings();
-    } catch (err: any) {
-      alert('Failed to cancel booking: ' + (err.response?.data?.message || err.message));
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-sm">
-            <Clock className="w-3 h-3" />
-            Pending
-          </span>
-        );
-      case 'approved':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-lg text-sm">
-            <CheckCircle className="w-3 h-3" />
-            Approved
-          </span>
-        );
-      case 'rejected':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-lg text-sm">
-            <XCircle className="w-3 h-3" />
-            Rejected
-          </span>
-        );
-      case 'cancelled':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-sm">
-            <XCircle className="w-3 h-3" />
-            Cancelled
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const upcomingBookings = bookings.filter(b => b.status === 'approved' && new Date(b.date) >= new Date());
-  const pendingBookings = bookings.filter(b => b.status === 'pending');
-  const pastBookings = bookings.filter(b => b.status === 'rejected' || b.status === 'cancelled' || (b.status === 'approved' && new Date(b.date) < new Date()));
 
   return (
-    <Layout currentPage="my-bookings" onNavigate={onNavigate} title="My Bookings">
+    <Layout currentPage="my-bookings" onNavigate={onNavigate} title="Schedules by Date">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-8">
         <div>
-          <h2 className="text-xl font-semibold text-[#1E293B] mb-2">My Room Bookings</h2>
-          <p className="text-slate-600">View your bookings and manage upcoming room reservations.</p>
+          <h2 className="text-xl font-semibold text-[#1E293B] mb-2">View All Schedules by Date</h2>
+          <p className="text-slate-600">Select a date to view all classes for that day.</p>
         </div>
-        <button
-          onClick={() => onNavigate('rooms')}
-          className="px-4 py-2 bg-[#3B82F6] text-white rounded-xl hover:bg-[#2563EB] transition-colors shadow-lg shadow-blue-500/30"
-        >
-          Book a Room
-        </button>
+      </div>
+
+      {/* Date Filter */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="w-full">
+            <label htmlFor="schedule-date" className="block text-sm font-medium text-slate-700 mb-2">
+              Date
+            </label>
+            <input
+              id="schedule-date"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="w-full sm:w-auto sm:min-w-[140px] sm:self-end">
+            <button
+              onClick={handleSearch}
+              disabled={searchLoading}
+              className="w-full px-4 py-2 bg-[#3B82F6] text-white rounded-lg hover:bg-[#2563EB] disabled:bg-slate-400 transition-colors flex items-center justify-center gap-2"
+            >
+              {searchLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4" />
+                  Search
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {validationError && (
+          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+            <AlertCircle className="w-4 h-4" />
+            {validationError}
+          </div>
+        )}
       </div>
 
       {/* Error Message */}
@@ -115,176 +166,86 @@ export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
       )}
 
       {/* Loading State */}
-      {loading && (
+      {searchLoading && (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="text-slate-600 mt-4">Loading bookings...</p>
+          <p className="text-slate-600 mt-4">Loading schedules...</p>
         </div>
       )}
 
-      {/* Stats */}
-      {!loading && (
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <div className="bg-white rounded-xl p-4 border border-slate-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-green-600" />
+      {/* Initial Prompt */}
+      {!hasSearched && !searchLoading && (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          <Calendar className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+          <h3 className="font-semibold text-[#1E293B] mb-2">Select a date and click search to view schedules</h3>
+        </div>
+      )}
+
+      {/* Upcoming Classes */}
+      {hasSearched && !searchLoading && classifiedSchedules.upcoming.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-[#1E293B] mb-3">Upcoming Classes</h3>
+          <div className="space-y-4">
+            {classifiedSchedules.upcoming.map((schedule) => (
+              <div key={schedule._id} className="bg-white rounded-xl border border-slate-200 p-5">
+                <h4 className="text-lg font-semibold text-[#1E293B] mb-3">{schedule.courseName}</h4>
+
+                <div className="space-y-2 text-slate-600 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    <span>{schedule.startTime} - {schedule.endTime}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    <span>{resolveRoomName(schedule)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    <span>{resolveTeacherName(schedule)}</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-[#1E293B]">{upcomingBookings.length}</p>
-                <p className="text-slate-600 text-sm">Approved</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-slate-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                <Clock className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-[#1E293B]">{pendingBookings.length}</p>
-                <p className="text-slate-600 text-sm">Pending</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-4 border border-slate-200">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                <XCircle className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-[#1E293B]">{pastBookings.length}</p>
-                <p className="text-slate-600 text-sm">Past/Rejected</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Pending Bookings */}
-      {!loading && pendingBookings.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-[#1E293B] mb-4">Pending Approval</h3>
-              <div className="space-y-4">
-                {pendingBookings.map((booking) => (
-                  <div key={booking._id} className="bg-white rounded-xl border border-amber-200 p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-6">
-                        <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                          <Clock className="w-6 h-6 text-amber-600" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-3 mb-1">
-                            <span className="font-semibold text-[#1E293B]">Room {booking.roomName}</span>
-                            {getStatusBadge(booking.status)}
-                          </div>
-                          <div className="flex items-center gap-4 text-slate-600 text-sm">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-4 h-4" />
-                              {new Date(booking.date).toLocaleDateString()}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-4 h-4" />
-                              {booking.startTime} - {booking.endTime}
-                            </span>
-                          </div>
-                          <p className="text-slate-500 text-sm mt-1">{booking.purpose}</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleCancel(booking._id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        aria-label="Cancel booking"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
+      {/* Past Classes */}
+      {hasSearched && !searchLoading && classifiedSchedules.past.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-[#1E293B] mb-3">Past Classes</h3>
+          <div className="space-y-4">
+            {classifiedSchedules.past.map((schedule) => (
+              <div key={schedule._id} className="bg-white rounded-xl border border-slate-200 p-5">
+                <h4 className="text-lg font-semibold text-[#1E293B] mb-3">{schedule.courseName}</h4>
+
+                <div className="space-y-2 text-slate-600 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    <span>{schedule.startTime} - {schedule.endTime}</span>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Approved Bookings */}
-          {!loading && upcomingBookings.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-[#1E293B] mb-4">Upcoming Bookings</h3>
-              <div className="space-y-4">
-                {upcomingBookings.map((booking) => (
-                  <div key={booking._id} className="bg-white rounded-xl border border-green-200 p-6">\n                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                        <CheckCircle className="w-6 h-6 text-green-600" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-[#1E293B]">Room {booking.roomName}</span>
-                          {getStatusBadge(booking.status)}
-                        </div>
-                        <div className="flex items-center gap-4 text-slate-600 text-sm">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            {new Date(booking.date).toLocaleDateString()}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            {booking.startTime} - {booking.endTime}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="text-slate-600">{booking.purpose}</p>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    <span>{resolveRoomName(schedule)}</span>
                   </div>
-                ))}
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    <span>{resolveTeacherName(schedule)}</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
+        </div>
+      )}
 
-          {/* Past Bookings */}
-          {!loading && pastBookings.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold text-[#1E293B] mb-4">Past Bookings</h3>
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="text-left p-4 font-medium text-slate-700">Room</th>
-                      <th className="text-left p-4 font-medium text-slate-700">Date & Time</th>
-                      <th className="text-left p-4 font-medium text-slate-700">Purpose</th>
-                      <th className="text-left p-4 font-medium text-slate-700">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pastBookings.map((booking) => (
-                      <tr key={booking._id} className="border-b border-slate-100 last:border-0">
-                        <td className="p-4 text-slate-900">{booking.roomName}</td>
-                        <td className="p-4 text-slate-600">
-                          <div>{new Date(booking.date).toLocaleDateString()}</div>
-                          <div className="text-sm text-slate-500">{booking.startTime} - {booking.endTime}</div>
-                        </td>
-                        <td className="p-4 text-slate-600">{booking.purpose}</td>
-                        <td className="p-4">{getStatusBadge(booking.status)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Empty State */}
-          {!loading && bookings.length === 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-              <Calendar className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="font-semibold text-[#1E293B] mb-2">No Bookings Yet</h3>
-              <p className="text-slate-600 mb-4">You haven't made any room bookings yet.</p>
-              <button
-                onClick={() => onNavigate('rooms')}
-                className="px-4 py-2 bg-[#3B82F6] text-white rounded-xl hover:bg-[#2563EB] transition-colors"
-              >
-                Book a Room
-              </button>
-            </div>
-          )}
+      {/* Empty State After Search */}
+      {hasSearched && !searchLoading && classifiedSchedules.upcoming.length === 0 && classifiedSchedules.past.length === 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          <Calendar className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+          <h3 className="font-semibold text-[#1E293B] mb-2">No schedules found for this date</h3>
+        </div>
+      )}
     </Layout>
   );
 }
