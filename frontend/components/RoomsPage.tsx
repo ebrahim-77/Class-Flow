@@ -19,7 +19,8 @@ interface Room {
 }
 
 interface RoomWithAvailability extends Room {
-  available: boolean;
+  id: string;
+  isAvailable: boolean;
 }
 
 export function RoomsPage({ onNavigate }: RoomsPageProps) {
@@ -66,14 +67,12 @@ export function RoomsPage({ onNavigate }: RoomsPageProps) {
       
       try {
         const availResponse = await roomAPI.checkAvailability(todayString, '08:00', '09:00');
-        if (availResponse.data.success) {
-          const availMap: { [roomId: string]: boolean } = {};
-          availResponse.data.rooms.forEach((room: RoomWithAvailability) => {
-            availMap[room._id] = room.available;
-          });
-          setAvailabilityMap(availMap);
-          setFilterApplied(true);
-        }
+        const availMap: { [roomId: string]: boolean } = {};
+        (availResponse.data || []).forEach((room: RoomWithAvailability) => {
+          availMap[String(room.id)] = room.isAvailable;
+        });
+        setAvailabilityMap(availMap);
+        setFilterApplied(true);
       } catch (availErr) {
         console.error('Failed to check initial availability:', availErr);
         // Fail silently for initial load
@@ -99,6 +98,7 @@ export function RoomsPage({ onNavigate }: RoomsPageProps) {
 
   const handleSearch = async () => {
     setValidationError('');
+    setError('');
     
     // Validate inputs
     if (!selectedDate || !selectedStartTime || !selectedEndTime) {
@@ -112,21 +112,30 @@ export function RoomsPage({ onNavigate }: RoomsPageProps) {
       return;
     }
 
+    const parsedDate = new Date(selectedDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+      setValidationError('Invalid date format');
+      return;
+    }
+
+    const formattedDate = parsedDate.toISOString().split('T')[0];
+    const startTime = selectedStartTime;
+    const endTime = selectedEndTime;
+
     try {
       setSearchLoading(true);
-      const response = await roomAPI.checkAvailability(selectedDate, selectedStartTime, selectedEndTime);
-      
-      if (response.data.success) {
-        const availMap: { [roomId: string]: boolean } = {};
-        response.data.rooms.forEach((room: RoomWithAvailability) => {
-          availMap[room._id] = room.available;
-        });
-        setAvailabilityMap(availMap);
-        setFilterApplied(true);
-      }
-    } catch (err) {
-      console.error('Failed to check availability:', err);
-      setValidationError('Failed to check availability. Please try again.');
+      console.log('Sending request:', { date: formattedDate, startTime, endTime });
+      const response = await roomAPI.checkAvailability(formattedDate, startTime, endTime);
+
+      const availMap: { [roomId: string]: boolean } = {};
+      (response.data || []).forEach((room: RoomWithAvailability) => {
+        availMap[String(room.id)] = room.isAvailable;
+      });
+      setAvailabilityMap(availMap);
+      setFilterApplied(true);
+    } catch (error) {
+      console.error(error);
+      setError('Failed to check availability. Please try again.');
     } finally {
       setSearchLoading(false);
     }

@@ -3,6 +3,7 @@ const router = express.Router();
 const Schedule = require('../models/Schedule');
 const Booking = require('../models/Booking');
 const Room = require('../models/Room');
+const User = require('../models/User');
 const { authenticate } = require('../middleware/auth');
 
 // @route   GET /api/dashboard/stats
@@ -10,6 +11,7 @@ const { authenticate } = require('../middleware/auth');
 // @access  Private
 router.get('/stats', authenticate, async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const stats = {};
 
     if (req.user.role === 'student') {
@@ -40,21 +42,51 @@ router.get('/stats', authenticate, async (req, res, next) => {
       // Admin stats
       const totalRooms = await Room.countDocuments();
       const totalSchedules = await Schedule.countDocuments({ isActive: true });
-      const totalTeachers = await User.countDocuments({ role: 'teacher' });
+      const totalTeachers = await User.countDocuments({ role: { $regex: '^teacher$', $options: 'i' } });
 
       const mostUsedRoomResult = await Schedule.aggregate([
-        { $match: { isActive: true, roomName: { $exists: true, $ne: '' } } },
-        { $group: { _id: '$roomName', usageCount: { $sum: 1 } } },
-        { $sort: { usageCount: -1, _id: 1 } },
+        {
+          $match: {
+            isActive: true,
+            $or: [
+              { roomId: { $exists: true, $ne: null } },
+              { roomName: { $exists: true, $ne: '' } }
+            ]
+          }
+        },
+        {
+          $group: {
+            _id: { $ifNull: ['$roomId', '$roomName'] },
+            count: { $sum: 1 },
+            roomName: { $first: '$roomName' }
+          }
+        },
+        { $sort: { count: -1, _id: 1 } },
         { $limit: 1 }
       ]);
 
-      const mostUsedRoom = mostUsedRoomResult.length > 0 ? mostUsedRoomResult[0]._id : 'N/A';
+      const mostUsedRoom = mostUsedRoomResult.length > 0
+        ? (mostUsedRoomResult[0].roomName || String(mostUsedRoomResult[0]._id))
+        : 'N/A';
 
       stats.totalRooms = totalRooms;
       stats.totalSchedules = totalSchedules;
       stats.totalTeachers = totalTeachers;
       stats.mostUsedRoom = mostUsedRoom;
+
+      return res.json({
+        success: true,
+        totalRooms,
+        totalSchedules,
+        totalTeachers,
+        mostUsedRoom,
+        stats: {
+          totalRooms,
+          totalSchedules,
+          totalTeachers,
+          mostUsedRoom
+        }
+      });
     }
 
     res.json({
@@ -62,7 +94,10 @@ router.get('/stats', authenticate, async (req, res, next) => {
       stats
     });
   } catch (error) {
-    next(error);
+    console.error('Dashboard stats error:', error);
+    res.status(500).json({
+      message: 'Failed to load analytics'
+    });
   }
 });
 

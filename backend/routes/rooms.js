@@ -1,7 +1,7 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Room = require('../models/Room');
-const Booking = require('../models/Booking');
 const Schedule = require('../models/Schedule');
 const { authenticate, authorize } = require('../middleware/auth');
 const { validateRoom } = require('../middleware/validators');
@@ -48,8 +48,82 @@ router.get('/', authenticate, async (req, res, next) => {
 // @route   GET /api/rooms/:id
 // @desc    Get room by ID
 // @access  Private
+// @route   GET /api/rooms/availability
+// @desc    Check availability of all rooms for a date/time range
+// @access  Private
+router.get('/availability', authenticate, async (req, res, next) => {
+  try {
+    const { date, startTime, endTime } = req.query;
+    console.log(req.query);
+
+    // Validate required parameters
+    if (!date || !startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
+      });
+    }
+
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (!datePattern.test(date)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format'
+      });
+    }
+
+    const [year, month, day] = date.split('-').map(Number);
+    const parsedDate = new Date(Date.UTC(year, month - 1, day));
+    const isValidDate =
+      parsedDate.getUTCFullYear() === year &&
+      parsedDate.getUTCMonth() === month - 1 &&
+      parsedDate.getUTCDate() === day;
+
+    if (!isValidDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format'
+      });
+    }
+
+    // Validate that end time is after start time
+    if (endTime <= startTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'End time must be after start time'
+      });
+    }
+
+    // Fetch all rooms
+    const rooms = await Room.find().sort({ building: 1, floor: 1, name: 1 });
+
+    // Check availability for each room
+    const roomsWithAvailability = await Promise.all(
+      rooms.map(async (room) => {
+        const available = await isRoomAvailableForRange(room._id, date, startTime, endTime);
+        return {
+          id: room._id,
+          name: room.name,
+          isAvailable: available && room.status === 'available'
+        };
+      })
+    );
+
+    res.json(roomsWithAvailability);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid ID'
+      });
+    }
+
     const room = await Room.findById(req.params.id);
 
     if (!room) {
@@ -73,6 +147,13 @@ router.get('/:id', authenticate, async (req, res, next) => {
 // @access  Private (Admin only)
 router.put('/:id', authenticate, authorize('admin'), validateRoom, async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid ID'
+      });
+    }
+
     const room = await Room.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -100,6 +181,13 @@ router.put('/:id', authenticate, authorize('admin'), validateRoom, async (req, r
 // @access  Private (Admin only)
 router.delete('/:id', authenticate, authorize('admin'), async (req, res, next) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid ID'
+      });
+    }
+
     const room = await Room.findByIdAndDelete(req.params.id);
 
     if (!room) {
@@ -150,17 +238,6 @@ const isRoomAvailableForRange = async (roomId, date, startTime, endTime) => {
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  // Check existing bookings
-  const existingBookings = await Booking.find({
-    roomId,
-    date: { $gte: startOfDay, $lte: endOfDay },
-    status: { $in: ['pending', 'approved'] }
-  });
-
-  if (existingBookings.some((booking) => hasTimeOverlap(startTime, endTime, booking.startTime, booking.endTime))) {
-    return false;
-  }
-
   // Check existing schedules
   const existingSchedules = await Schedule.find({
     roomId,
@@ -170,63 +247,5 @@ const isRoomAvailableForRange = async (roomId, date, startTime, endTime) => {
 
   return !existingSchedules.some((schedule) => hasTimeOverlap(startTime, endTime, schedule.startTime, schedule.endTime));
 };
-
-// ==================== NEW ENDPOINT ====================
-
-// @route   GET /api/rooms/availability
-// @desc    Check availability of all rooms for a date/time range
-// @access  Private
-router.get('/availability', authenticate, async (req, res, next) => {
-  try {
-    const { date, startTime, endTime, start, end } = req.query;
-    const normalizedStartTime = startTime || start;
-    const normalizedEndTime = endTime || end;
-
-    // Validate required parameters
-    if (!date || !normalizedStartTime || !normalizedEndTime) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide date, start time, and end time'
-      });
-    }
-
-    // Validate that end time is after start time
-    if (normalizedEndTime <= normalizedStartTime) {
-      return res.status(400).json({
-        success: false,
-        message: 'End time must be after start time'
-      });
-    }
-
-    // Fetch all rooms
-    const rooms = await Room.find().sort({ building: 1, floor: 1, name: 1 });
-
-    // Check availability for each room
-    const roomsWithAvailability = await Promise.all(
-      rooms.map(async (room) => {
-        const available = await isRoomAvailableForRange(room._id, date, normalizedStartTime, normalizedEndTime);
-        return {
-          _id: room._id,
-          name: room.name,
-          building: room.building,
-          floor: room.floor,
-          capacity: room.capacity,
-          features: room.features,
-          status: room.status,
-          available: available && room.status === 'available' // only "available" if both room status is available AND no conflicts
-        };
-      })
-    );
-
-    res.json({
-      success: true,
-      count: roomsWithAvailability.length,
-      checkedFor: { date, startTime: normalizedStartTime, endTime: normalizedEndTime },
-      rooms: roomsWithAvailability
-    });
-  } catch (error) {
-    next(error);
-  }
-});
 
 module.exports = router;

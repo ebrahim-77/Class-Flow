@@ -33,7 +33,10 @@ app.use(express.urlencoded({ limit: '5mb', extended: true }));
 
 // Database connection
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ MongoDB connected successfully'))
+  .then(() => {
+    console.log('✅ MongoDB connected successfully');
+    console.log('Connected DB:', mongoose.connection.name);
+  })
   .catch((err) => console.error('❌ MongoDB connection error:', err));
 
 // Routes
