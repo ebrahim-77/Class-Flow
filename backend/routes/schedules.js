@@ -649,4 +649,171 @@ router.post('/check-conflict', authenticate, authorize('teacher', 'admin'), asyn
   }
 });
 
+// @route   PUT /api/schedules/:id/update
+// @desc    Update schedule (message update, reschedule, or cancel)
+// @access  Private (Teacher/Admin)
+router.put('/:id/update', authenticate, authorize('teacher', 'admin'), async (req, res, next) => {
+  try {
+    const schedule = await Schedule.findById(req.params.id);
+
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message: 'Schedule not found'
+      });
+    }
+
+    // Teachers can only update their own schedules
+    if (req.user.role === 'teacher' && schedule.teacherId.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this schedule'
+      });
+    }
+
+    const { type, editMessage, newDate, startTime, endTime } = req.body;
+
+    // Validate type
+    if (!type || !['update', 'reschedule', 'cancel'].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid update type. Must be "update", "reschedule", or "cancel"'
+      });
+    }
+
+    let updateData = {};
+
+    // Handle different update types
+    if (type === 'cancel') {
+      // Cancel the class
+      updateData.status = 'cancelled';
+      if (editMessage) {
+        updateData.editMessage = editMessage;
+      }
+
+      const notificationMessage = `Class cancelled: ${schedule.courseName}${editMessage ? ` (${editMessage})` : ''}`;
+      await Notification.create({
+        message: notificationMessage,
+        type: 'schedule',
+        createdBy: req.user.id,
+        targetRole: 'student',
+        scheduleId: schedule._id,
+        readBy: []
+      });
+
+    } else if (type === 'reschedule') {
+      // Reschedule to new date/time
+      if (!newDate || !startTime || !endTime) {
+        return res.status(400).json({
+          success: false,
+          message: 'newDate, startTime, and endTime are required for reschedule'
+        });
+      }
+
+      // Validate end time is after start time
+      if (endTime <= startTime) {
+        return res.status(400).json({
+          success: false,
+          message: 'End time must be after start time'
+        });
+      }
+
+      // Validate date is not in the past
+      const newDateObj = new Date(newDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (newDateObj < today) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot reschedule to a past date'
+        });
+      }
+
+      // Check for conflicts with new date/time
+      const { hasConflict, conflictType } = await checkConflict(
+        schedule.roomId,
+        newDate,
+        startTime,
+        endTime,
+        schedule._id
+      );
+
+      if (hasConflict) {
+        const duration = calculateDuration(startTime, endTime);
+        const suggestedSlots = await findAvailableSlots(
+          schedule.roomId,
+          newDate,
+          duration,
+          schedule._id
+        );
+
+        return res.status(409).json({
+          success: false,
+          message: `The room is already booked at the selected time${conflictType === 'booking' ? ' (room booking)' : ''}.`,
+          hasConflict: true,
+          conflictType,
+          suggestedSlots,
+          noSlotsAvailable: suggestedSlots.length === 0
+        });
+      }
+
+      // Update schedule with new date/time
+      updateData.date = new Date(newDate);
+      updateData.startTime = startTime;
+      updateData.endTime = endTime;
+      updateData.day = getDayName(new Date(newDate));
+      updateData.duration = calculateDuration(startTime, endTime);
+      updateData.status = 'rescheduled';
+      if (editMessage) {
+        updateData.editMessage = editMessage;
+      }
+
+      // Format new time for notification
+      const newTimeStr = `${startTime} - ${endTime}`;
+      const notificationMessage = `Class rescheduled: ${schedule.courseName} → ${newTimeStr}${editMessage ? ` (${editMessage})` : ''}`;
+      await Notification.create({
+        message: notificationMessage,
+        type: 'schedule',
+        createdBy: req.user.id,
+        targetRole: 'student',
+        scheduleId: schedule._id,
+        readBy: []
+      });
+
+    } else if (type === 'update') {
+      // Update message only
+      if (editMessage) {
+        updateData.editMessage = editMessage;
+      }
+      // Keep status as is (don't change it for message-only updates)
+
+      const notificationMessage = `Class updated: ${schedule.courseName}${editMessage ? ` - ${editMessage}` : ''}`;
+      await Notification.create({
+        message: notificationMessage,
+        type: 'schedule',
+        createdBy: req.user.id,
+        targetRole: 'student',
+        scheduleId: schedule._id,
+        readBy: []
+      });
+    }
+
+    // Apply updates to schedule
+    const updatedSchedule = await Schedule.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Schedule updated successfully',
+      schedule: updatedSchedule
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

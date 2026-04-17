@@ -111,6 +111,9 @@ export const scheduleAPI = {
   update: (id: string, data: { courseName: string; roomId: string; degree: ScheduleDegree; batch?: number; date: string; startTime: string; endTime: string; color?: string; semester?: string; academicYear?: string }) =>
     api.put(`/schedules/${id}`, data),
   
+  editSchedule: (id: string, data: { type: 'update' | 'reschedule' | 'cancel'; editMessage?: string; newDate?: string; startTime?: string; endTime?: string }) =>
+    api.put(`/schedules/${id}/update`, data),
+  
   delete: (id: string) =>
     api.delete(`/schedules/${id}`),
   

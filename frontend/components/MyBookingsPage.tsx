@@ -1,8 +1,10 @@
 import { Layout } from './Layout';
 import type { Page } from '../App';
-import { Calendar, Clock, MapPin, Search, User, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, Search, User, AlertCircle, Edit2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { scheduleAPI } from '../src/api';
+import { useAuth } from '../context/AuthContext';
+import { EditScheduleModal } from './EditScheduleModal';
 
 interface MyBookingsPageProps {
   onNavigate: (page: Page) => void;
@@ -12,28 +14,39 @@ interface Schedule {
   _id: string;
   courseName: string;
   teacherName?: string;
-  teacherId?: { name?: string };
+  teacherId?: string | { _id?: string; name?: string };
   roomName: string;
   roomId?: { name?: string };
   date: string;
   startTime: string;
   endTime: string;
+  status?: 'scheduled' | 'rescheduled' | 'cancelled';
+  editMessage?: string;
 }
 
 export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
+  const { user } = useAuth();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selectedDate, setSelectedDate] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [selectedScheduleForEdit, setSelectedScheduleForEdit] = useState<Schedule | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   const resolveRoomName = (schedule: Schedule) => {
     return schedule.roomName || schedule.roomId?.name || 'Unknown room';
   };
 
   const resolveTeacherName = (schedule: Schedule) => {
-    return schedule.teacherName || schedule.teacherId?.name || 'Unknown teacher';
+    return schedule.teacherName || (typeof schedule.teacherId === 'object' ? schedule.teacherId?.name : undefined) || 'Unknown teacher';
+  };
+
+  const canEditSchedule = (schedule: Schedule) => {
+    if (user?.role !== 'teacher') return false;
+    const scheduleTeacherId = typeof schedule.teacherId === 'string' ? schedule.teacherId : schedule.teacherId?._id;
+    return scheduleTeacherId === user?.id;
   };
 
   const selectedDateType = useMemo(() => {
@@ -204,6 +217,18 @@ export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
                     <span>{resolveTeacherName(schedule)}</span>
                   </div>
                 </div>
+                {canEditSchedule(schedule) && (
+                  <button
+                    onClick={() => {
+                      setSelectedScheduleForEdit(schedule);
+                      setEditModalOpen(true);
+                    }}
+                    className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-100 px-3 py-2 text-sm text-blue-700 hover:bg-blue-200 transition-colors"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                    Edit
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -233,6 +258,18 @@ export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
                     <span>{resolveTeacherName(schedule)}</span>
                   </div>
                 </div>
+                {canEditSchedule(schedule) && (
+                  <button
+                    onClick={() => {
+                      setSelectedScheduleForEdit(schedule);
+                      setEditModalOpen(true);
+                    }}
+                    className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-100 px-3 py-2 text-sm text-blue-700 hover:bg-blue-200 transition-colors"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                    Edit
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -246,6 +283,35 @@ export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
           <h3 className="font-semibold text-[#1E293B] mb-2">No schedules found for this date</h3>
         </div>
       )}
+
+      {/* Edit Schedule Modal */}
+      <EditScheduleModal
+        schedule={
+          selectedScheduleForEdit
+            ? {
+                _id: selectedScheduleForEdit._id,
+                courseName: selectedScheduleForEdit.courseName,
+                teacherName: resolveTeacherName(selectedScheduleForEdit),
+                roomName: resolveRoomName(selectedScheduleForEdit),
+                date: selectedScheduleForEdit.date,
+                startTime: selectedScheduleForEdit.startTime,
+                endTime: selectedScheduleForEdit.endTime,
+                status: selectedScheduleForEdit.status || 'scheduled',
+                editMessage: selectedScheduleForEdit.editMessage
+              }
+            : null
+        }
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false);
+          setSelectedScheduleForEdit(null);
+        }}
+        onSuccess={() => {
+          setEditModalOpen(false);
+          setSelectedScheduleForEdit(null);
+          handleSearch();
+        }}
+      />
     </Layout>
   );
 }

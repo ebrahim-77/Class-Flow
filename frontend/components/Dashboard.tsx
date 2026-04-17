@@ -13,6 +13,7 @@ interface ScheduleItem {
   _id: string;
   courseName: string;
   teacherName: string;
+  teacherId: string;
   degree: 'BSc Engg' | 'MSc Engg (Regular)' | 'MSc Engg (Evening)' | 'PhD Program';
   batch?: number;
   date: string;
@@ -20,6 +21,8 @@ interface ScheduleItem {
   day: string;
   startTime: string;
   endTime: string;
+  status?: 'scheduled' | 'rescheduled' | 'cancelled';
+  editMessage?: string;
   roomId?: {
     name: string;
     building: string;
@@ -371,8 +374,34 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                         : 'border-blue-100 bg-white'
                     }`}
                   >
-                    <h3 className="text-base font-bold text-[#1E293B]">{schedule.courseName}</h3>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <h3 className={`text-base font-bold ${
+                          schedule.status === 'cancelled' 
+                            ? 'text-red-600 line-through' 
+                            : 'text-[#1E293B]'
+                        }`}>
+                          {schedule.courseName}
+                        </h3>
+                      </div>
+                      {schedule.status && schedule.status !== 'scheduled' && (
+                        <span className={`whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium ${
+                          schedule.status === 'rescheduled'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : schedule.status === 'cancelled'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {schedule.status === 'rescheduled' ? 'Rescheduled' : 'Cancelled'}
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-1 text-sm text-slate-600">{formatDegreeBatch(schedule)}</p>
+                    {schedule.editMessage && (
+                      <p className="mt-2 text-sm text-slate-500 italic border-l-2 border-slate-300 pl-2">
+                        Note: {schedule.editMessage}
+                      </p>
+                    )}
                     <div className="mt-3 space-y-2 text-sm text-slate-600">
                       <p className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-[#3B82F6]" />
@@ -426,8 +455,34 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                         : 'border-slate-200 bg-slate-50'
                     }`}
                   >
-                    <h3 className="text-base font-bold text-[#1E293B]">{schedule.courseName}</h3>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <h3 className={`text-base font-bold ${
+                          schedule.status === 'cancelled' 
+                            ? 'text-red-600 line-through' 
+                            : 'text-[#1E293B]'
+                        }`}>
+                          {schedule.courseName}
+                        </h3>
+                      </div>
+                      {schedule.status && schedule.status !== 'scheduled' && (
+                        <span className={`whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium ${
+                          schedule.status === 'rescheduled'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : schedule.status === 'cancelled'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {schedule.status === 'rescheduled' ? 'Rescheduled' : 'Cancelled'}
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-1 text-sm text-slate-600">{formatDegreeBatch(schedule)}</p>
+                    {schedule.editMessage && (
+                      <p className="mt-2 text-sm text-slate-500 italic border-l-2 border-slate-300 pl-2">
+                        Note: {schedule.editMessage}
+                      </p>
+                    )}
                     <div className="mt-3 space-y-2 text-sm text-slate-600">
                       <p className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-[#3B82F6]" />

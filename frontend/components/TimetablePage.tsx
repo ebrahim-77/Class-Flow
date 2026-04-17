@@ -3,6 +3,8 @@ import type { Page } from '../App';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { scheduleAPI } from '../src/api';
+import { useAuth } from '../context/AuthContext';
+import { EditScheduleModal } from './EditScheduleModal';
 
 interface TimetablePageProps {
   onNavigate: (page: Page) => void;
@@ -12,13 +14,13 @@ interface ScheduleItem {
   _id: string;
   courseName: string;
   teacherName?: string;
-  teacherId?: {
-    name?: string;
-  };
+  teacherId?: string | { name?: string };
   roomName: string;
   date: string;
   startTime: string;
   endTime: string;
+  status?: 'scheduled' | 'rescheduled' | 'cancelled';
+  editMessage?: string;
 }
 
 type DegreeOption = 'BSc Engg' | 'MSc Engg (Regular)' | 'MSc Engg (Evening)' | 'PhD Program';
@@ -70,6 +72,7 @@ function formatTimeLabel(time: string): string {
 }
 
 export function TimetablePage({ onNavigate }: TimetablePageProps) {
+  const { user } = useAuth();
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(getWeekStart(new Date()));
   const [selectedDegree, setSelectedDegree] = useState<DegreeOption | ''>('');
   const [selectedBatch, setSelectedBatch] = useState('');
@@ -77,6 +80,9 @@ export function TimetablePage({ onNavigate }: TimetablePageProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedScheduleForEdit, setSelectedScheduleForEdit] = useState<ScheduleItem | null>(null);
+  const [showCancelled, setShowCancelled] = useState(true);
 
   useEffect(() => {
     if (!degreeNeedsBatch(selectedDegree)) {
@@ -165,7 +171,8 @@ export function TimetablePage({ onNavigate }: TimetablePageProps) {
       const scheduleDate = new Date(schedule.date);
       const dayMatches = scheduleDate.getDay() === dayIndex;
       const hourMatches = schedule.startTime.split(':')[0] === slotHour.split(':')[0];
-      return dayMatches && hourMatches;
+      const statusMatches = showCancelled || schedule.status !== 'cancelled';
+      return dayMatches && hourMatches && statusMatches;
     });
   }
 
@@ -258,6 +265,19 @@ export function TimetablePage({ onNavigate }: TimetablePageProps) {
           </button>
         </div>
 
+        {/* Filter: Show cancelled classes */}
+        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showCancelled}
+              onChange={(e) => setShowCancelled(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="text-sm text-slate-700">Show cancelled classes</span>
+          </label>
+        </div>
+
         {loading ? (
           <div className="rounded-2xl border border-slate-200 bg-white py-12 text-center shadow-sm">
             <Loader2 className="mx-auto h-10 w-10 animate-spin text-blue-600" />
@@ -299,16 +319,37 @@ export function TimetablePage({ onNavigate }: TimetablePageProps) {
                         return (
                           <td key={`${dayLabel}-${slot}`} className="h-[76px] border-b border-r border-slate-200 p-1 align-top">
                             <div className="space-y-1">
-                              {cellSchedules.map((schedule) => (
-                                <div
-                                  key={schedule._id}
-                                  className="rounded-md bg-blue-500 px-2 py-1 text-left text-white"
-                                  title={`${schedule.courseName}\n${schedule.startTime} - ${schedule.endTime}`}
-                                >
-                                  <p className="truncate text-[12px] font-semibold leading-tight">{schedule.courseName}</p>
-                                  <p className="truncate text-[10px] text-white/85 leading-tight">{schedule.startTime} - {schedule.endTime}</p>
-                                </div>
-                              ))}
+                              {cellSchedules.map((schedule) => {
+                                const isTeacherOfSchedule = user?.role === 'teacher' && 
+                                  (typeof schedule.teacherId === 'string' 
+                                    ? schedule.teacherId === user?.id 
+                                    : schedule.teacherId?._id === user?.id);
+                                
+                                return (
+                                  <div
+                                    key={schedule._id}
+                                    onClick={() => {
+                                      if (isTeacherOfSchedule) {
+                                        setSelectedScheduleForEdit(schedule);
+                                        setEditModalOpen(true);
+                                      }
+                                    }}
+                                    className={`rounded-md px-2 py-1 text-left text-white ${
+                                      schedule.status === 'cancelled'
+                                        ? 'bg-red-500 line-through'
+                                        : schedule.status === 'rescheduled'
+                                        ? 'bg-yellow-600'
+                                        : isTeacherOfSchedule
+                                        ? 'cursor-pointer bg-blue-600 hover:bg-blue-700'
+                                        : 'bg-blue-500'
+                                    }`}
+                                    title={isTeacherOfSchedule ? 'Click to edit' : `${schedule.courseName}\n${schedule.startTime} - ${schedule.endTime}`}
+                                  >
+                                    <p className="truncate text-[12px] font-semibold leading-tight">{schedule.courseName}</p>
+                                    <p className="truncate text-[10px] text-white/85 leading-tight">{schedule.startTime} - {schedule.endTime}</p>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </td>
                         );
@@ -320,6 +361,19 @@ export function TimetablePage({ onNavigate }: TimetablePageProps) {
             </table>
           </div>
         )}
+
+        {/* Edit Schedule Modal */}
+        <EditScheduleModal
+          schedule={selectedScheduleForEdit}
+          isOpen={editModalOpen}
+          onClose={() => {
+            setEditModalOpen(false);
+            setSelectedScheduleForEdit(null);
+          }}
+          onSuccess={() => {
+            fetchSchedules(selectedDegree, selectedBatch ? Number(selectedBatch) : undefined);
+          }}
+        />
       </div>
     </Layout>
   );

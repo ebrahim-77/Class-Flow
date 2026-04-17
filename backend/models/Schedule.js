@@ -79,6 +79,15 @@ const scheduleSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  status: {
+    type: String,
+    enum: ['scheduled', 'rescheduled', 'cancelled'],
+    default: 'scheduled'
+  },
+  editMessage: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true
@@ -86,6 +95,7 @@ const scheduleSchema = new mongoose.Schema({
 
 // Indexes
 scheduleSchema.index({ teacherId: 1, date: 1 });
+scheduleSchema.index({ teacherId: 1, status: 1 });
 scheduleSchema.index({ roomId: 1, date: 1 });
 scheduleSchema.index({ date: 1, startTime: 1 });
 scheduleSchema.index({ degree: 1, batch: 1, date: 1 });
