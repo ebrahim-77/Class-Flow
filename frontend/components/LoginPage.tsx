@@ -1,4 +1,4 @@
-import { Mail, Lock, ArrowRight, User, GraduationCap, BookOpen, Shield, ChevronLeft } from 'lucide-react';
+import { Mail, Lock, ArrowRight, User, GraduationCap, BookOpen, Shield, ChevronLeft, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import type { Page } from '../App';
@@ -22,26 +22,42 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
     title: string;
     description: string;
     icon: typeof GraduationCap;
+    color: string;
+    bgColor: string;
+    borderColor: string;
+    hoverBg: string;
   }> = [
-    {
-      role: 'student',
-      title: 'Continue as Student',
-      description: 'View schedules and class information.',
-      icon: GraduationCap,
-    },
-    {
-      role: 'teacher',
-      title: 'Continue as Teacher',
-      description: 'Post schedules and book rooms.',
-      icon: BookOpen,
-    },
-    {
-      role: 'admin',
-      title: 'Continue as Admin',
-      description: 'Manage rooms and system settings.',
-      icon: Shield,
-    },
-  ];
+      {
+        role: 'student',
+        title: 'Student',
+        description: 'View schedules and class information.',
+        icon: GraduationCap,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50',
+        borderColor: 'border-blue-200',
+        hoverBg: 'hover:bg-blue-100',
+      },
+      {
+        role: 'teacher',
+        title: 'Teacher',
+        description: 'Post schedules and book rooms.',
+        icon: BookOpen,
+        color: 'text-purple-600',
+        bgColor: 'bg-purple-50',
+        borderColor: 'border-purple-200',
+        hoverBg: 'hover:bg-purple-100',
+      },
+      {
+        role: 'admin',
+        title: 'Administrator',
+        description: 'Manage rooms and system settings.',
+        icon: Shield,
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-50',
+        borderColor: 'border-amber-200',
+        hoverBg: 'hover:bg-amber-100',
+      },
+    ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,19 +91,25 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 px-4 py-6">
-      <div className="mx-auto flex min-h-screen w-full max-w-md items-center">
-        <div className="w-full space-y-5">
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#3B82F6] text-white shadow-lg shadow-blue-500/30">
-              <span className="text-lg font-bold">CF</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 px-4 py-8 sm:py-12">
+      <div className="mx-auto flex min-h-screen w-full max-w-2xl items-center">
+        <div className="w-full space-y-8 sm:space-y-10">
+          {/* Header Section */}
+          <div className="text-center space-y-3 animate-fade-in">
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-500 flex items-center justify-center text-white shadow-md hover:shadow-lg transition-shadow duration-300 flex-shrink-0">
+                <span className="text-xl font-bold">CF</span>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">ClassFlow</h1>
             </div>
-            <h1 className="text-2xl font-bold text-[#1E293B]">ClassFlow</h1>
-            <p className="mt-2 text-sm text-slate-600">Choose your role to continue.</p>
+            <p className="text-base sm:text-lg text-gray-600 font-medium">
+              {selectedRole ? 'Welcome back' : 'Choose your role to get started'}
+            </p>
           </div>
 
           {!selectedRole ? (
-            <div className="space-y-3">
+            /* Role Selection Cards */
+            <div className="space-y-3 sm:space-y-4">
               {roleOptions.map((option) => {
                 const Icon = option.icon;
                 return (
@@ -98,134 +120,168 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                       setSelectedRole(option.role);
                       setError('');
                     }}
-                    className="flex w-full items-start gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50"
+                    className={`group w-full rounded-2xl border-2 transition-all duration-300 p-5 sm:p-6 text-left hover:scale-[1.02] hover:shadow-lg ${option.borderColor} ${option.bgColor} ${option.hoverBg}`}
                   >
-                    <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[#3B82F6]">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-[#1E293B]">{option.title}</p>
-                      <p className="mt-1 text-sm text-slate-600">{option.description}</p>
+                    <div className="flex items-start gap-4 sm:gap-5">
+                      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${option.color} bg-white shadow-sm group-hover:shadow-md transition-shadow duration-300`}>
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-gray-900 text-lg sm:text-base">{option.title}</p>
+                        <p className="mt-1.5 text-sm text-gray-700 leading-relaxed">{option.description}</p>
+                      </div>
+                      <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 group-hover:translate-x-1 transition-all duration-300 flex-shrink-0 mt-1" />
                     </div>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-              <div className="mb-4 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedRole(null);
-                    setIsRegister(false);
-                    setError('');
-                  }}
-                  className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Change role
-                </button>
-                <span className="rounded-full bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 capitalize">
-                  {selectedRole}
-                </span>
+            /* Login/Register Form */
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-lg p-6 sm:p-8 space-y-6 animate-fade-in">
+              {/* Form Header with Role Selector */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole(null);
+                      setIsRegister(false);
+                      setError('');
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors duration-200 group"
+                  >
+                    <ChevronLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform duration-200" />
+                    Change role
+                  </button>
+                  <div className="px-3 py-1.5 rounded-full bg-blue-100 border border-blue-300 text-xs font-semibold text-blue-900 capitalize">
+                    {selectedRole === 'admin' ? 'Administrator' : selectedRole}
+                  </div>
+                </div>
+
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    {isRegister ? 'Create your account' : 'Welcome back'}
+                  </h2>
+                  <p className="mt-2 text-gray-600">
+                    {isRegister
+                      ? `Sign up as a ${selectedRole === 'admin' ? 'admin' : selectedRole} to get started.`
+                      : `Sign in to your ${selectedRole === 'admin' ? 'admin' : selectedRole} account.`}
+                  </p>
+                </div>
               </div>
 
-              <div className="mb-5">
-                <h2 className="text-xl font-semibold text-[#1E293B]">
-                  {isRegister ? 'Create account' : 'Sign in'}
-                </h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  {isRegister
-                    ? `Register as a ${selectedRole}.`
-                    : `Continue as a ${selectedRole}.`}
-                </p>
-              </div>
-
+              {/* Error Message */}
               {error && (
-                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {error}
+                <div className="rounded-xl border border-red-300 bg-red-50 p-4 flex items-start gap-3">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <div className="h-2 w-2 rounded-full bg-red-600" />
+                  </div>
+                  <p className="text-sm text-red-800 font-medium">{error}</p>
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Form Fields */}
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
                 {isRegister && (
-                  <div>
-                    <label htmlFor="name" className="mb-2 block font-medium text-[#1E293B]">
+                  <div className="space-y-2">
+                    <label htmlFor="name" className="block text-sm font-semibold text-gray-900">
                       Full Name
                     </label>
                     <div className="relative">
-                      <User className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                      <User className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400 pointer-events-none" />
                       <input
                         id="name"
                         type="text"
                         placeholder="John Smith"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 pl-12 text-slate-900 outline-none transition-colors focus:border-[#3B82F6]"
+                        className="w-full rounded-xl border-2 border-gray-300 bg-white px-4 py-3 pl-12 text-gray-900 placeholder:text-gray-500 outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20"
                         required
                       />
                     </div>
                   </div>
                 )}
 
-                <div>
-                  <label htmlFor="email" className="mb-2 block font-medium text-[#1E293B]">
+                <div className="space-y-2">
+                  <label htmlFor="email" className="block text-sm font-semibold text-gray-900">
                     Email Address
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     <input
                       id="email"
                       type="email"
-                      placeholder="student@university.edu"
+                      placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 pl-12 text-slate-900 outline-none transition-colors focus:border-[#3B82F6]"
+                      className="w-full rounded-xl border-2 border-gray-300 bg-white px-4 py-3 pl-12 text-gray-900 placeholder:text-gray-500 outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20"
                       required
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label htmlFor="password" className="mb-2 block font-medium text-[#1E293B]">
+                <div className="space-y-2">
+                  <label htmlFor="password" className="block text-sm font-semibold text-gray-900">
                     Password
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     <input
                       id="password"
                       type="password"
-                      placeholder="Enter your password"
+                      placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-4 py-3 pl-12 text-slate-900 outline-none transition-colors focus:border-[#3B82F6]"
+                      className="w-full rounded-xl border-2 border-gray-300 bg-white px-4 py-3 pl-12 text-gray-900 placeholder:text-gray-500 outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20"
                       required
                       minLength={6}
                     />
                   </div>
                   {isRegister && (
-                    <p className="mt-1 text-sm text-slate-500">Minimum 6 characters</p>
+                    <p className="text-xs text-gray-600 font-medium mt-1">Minimum 6 characters</p>
                   )}
                 </div>
 
                 {isRegister && selectedRole === 'admin' && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-                    Admin accounts are created manually.
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <div className="h-2 w-2 rounded-full bg-amber-600" />
+                    </div>
+                    <p className="text-sm text-amber-900 font-medium">Admin accounts are created manually by system administrators.</p>
                   </div>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#3B82F6] py-3 font-medium text-white shadow-lg shadow-blue-500/30 transition-colors hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {loading ? 'Please wait...' : isRegister ? 'Create Account' : 'Sign In'}
-                  {!loading && <ArrowRight className="h-5 w-5" />}
-                </button>
+                {/* Submit Button */}
+<button
+  type="submit"
+  disabled={loading}
+  onClick={handleSubmit}
+  style={{
+    backgroundColor: loading ? '#93c5fd' : '#2563eb',
+    color: '#ffffff',
+    cursor: loading ? 'not-allowed' : 'pointer',
+  }}
+  className="group w-full mt-6 relative overflow-hidden rounded-xl py-3 sm:py-3.5 px-4 font-semibold shadow-md transition-all duration-300 active:scale-95"
+>
+  <div className="flex items-center justify-center gap-2 relative z-10">
+    {loading ? (
+      <>
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span>Please wait...</span>
+      </>
+    ) : (
+      <>
+        <span>{isRegister ? 'Create Account' : 'Sign In'}</span>
+        <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform duration-300" />
+      </>
+    )}
+  </div>
+</button>
               </form>
 
-              <div className="mt-4 text-center text-sm text-slate-600">
+              {/* Toggle Register/Login */}
+              <div className="text-center text-sm text-slate-600 pt-2">
                 {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
                 <button
                   type="button"
@@ -233,7 +289,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                     setIsRegister(!isRegister);
                     setError('');
                   }}
-                  className="font-medium text-[#3B82F6] hover:underline"
+                  className="font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors duration-200"
                 >
                   {isRegister ? 'Sign In' : 'Register'}
                 </button>
@@ -242,6 +298,22 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
           )}
         </div>
       </div>
+
+      <style>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
