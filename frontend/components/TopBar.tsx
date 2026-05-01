@@ -335,10 +335,28 @@ export function TopBar({ title }: TopBarProps) {
               >
                 <Bell className="w-5 h-5 text-slate-600" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </span>
-                )}
+  <span
+    style={{
+      position: 'absolute',
+      top: '-10px',
+      right: '-10px',
+      minWidth: '22px',
+      height: '22px',
+      padding: '0 5px',
+      borderRadius: '999px',
+      backgroundColor: '#ef4444',
+      color: '#fff',
+      fontSize: '11px',
+      fontWeight: '700',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      boxShadow: '0 0 0 2px white',
+    }}
+  >
+    {unreadCount > 99 ? '99+' : unreadCount}
+  </span>
+)}
               </button>
 
             </div>

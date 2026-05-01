@@ -201,7 +201,21 @@ export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
           <div className="space-y-4">
             {classifiedSchedules.upcoming.map((schedule) => (
               <div key={schedule._id} className="bg-white rounded-xl border border-slate-200 p-5">
-                <h4 className="text-lg font-semibold text-[#1E293B] mb-3">{schedule.courseName}</h4>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <h4 className="text-lg font-semibold text-[#1E293B]">{schedule.courseName}</h4>
+                  {canEditSchedule(schedule) && (
+                    <button
+                      onClick={() => {
+                        setSelectedScheduleForEdit(schedule);
+                        setEditModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-100 px-3 py-2 text-sm text-blue-700 hover:bg-blue-200 transition-colors flex-shrink-0"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                      Edit
+                    </button>
+                  )}
+                </div>
 
                 <div className="space-y-2 text-slate-600 text-sm">
                   <div className="flex items-center gap-2">
@@ -217,18 +231,6 @@ export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
                     <span>{resolveTeacherName(schedule)}</span>
                   </div>
                 </div>
-                {canEditSchedule(schedule) && (
-                  <button
-                    onClick={() => {
-                      setSelectedScheduleForEdit(schedule);
-                      setEditModalOpen(true);
-                    }}
-                    className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-100 px-3 py-2 text-sm text-blue-700 hover:bg-blue-200 transition-colors"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                    Edit
-                  </button>
-                )}
               </div>
             ))}
           </div>
@@ -242,7 +244,21 @@ export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
           <div className="space-y-4">
             {classifiedSchedules.past.map((schedule) => (
               <div key={schedule._id} className="bg-white rounded-xl border border-slate-200 p-5">
-                <h4 className="text-lg font-semibold text-[#1E293B] mb-3">{schedule.courseName}</h4>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <h4 className="text-lg font-semibold text-[#1E293B]">{schedule.courseName}</h4>
+                  {canEditSchedule(schedule) && (
+                    <button
+                      onClick={() => {
+                        setSelectedScheduleForEdit(schedule);
+                        setEditModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-100 px-3 py-2 text-sm text-blue-700 hover:bg-blue-200 transition-colors flex-shrink-0"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                      Edit
+                    </button>
+                  )}
+                </div>
 
                 <div className="space-y-2 text-slate-600 text-sm">
                   <div className="flex items-center gap-2">
@@ -258,18 +274,6 @@ export function MyBookingsPage({ onNavigate }: MyBookingsPageProps) {
                     <span>{resolveTeacherName(schedule)}</span>
                   </div>
                 </div>
-                {canEditSchedule(schedule) && (
-                  <button
-                    onClick={() => {
-                      setSelectedScheduleForEdit(schedule);
-                      setEditModalOpen(true);
-                    }}
-                    className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-100 px-3 py-2 text-sm text-blue-700 hover:bg-blue-200 transition-colors"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                    Edit
-                  </button>
-                )}
               </div>
             ))}
           </div>
