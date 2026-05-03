@@ -2,6 +2,7 @@ import { Mail, Lock, ArrowRight, User, GraduationCap, BookOpen, Shield, ChevronL
 import { useState } from 'react';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import type { Page } from '../App';
+import AppLogo from './AppLogo';
 
 interface LoginPageProps {
   onNavigate: (page: Page) => void;
@@ -91,18 +92,15 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 px-4 py-8 sm:py-12">
-      <div className="mx-auto flex min-h-screen w-full max-w-2xl items-center">
-        <div className="w-full space-y-8 sm:space-y-10">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="w-full max-w-md px-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 sm:p-8 space-y-6 animate-fade-in">
           {/* Header Section */}
-          <div className="text-center space-y-3 animate-fade-in">
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-500 flex items-center justify-center text-white shadow-md hover:shadow-lg transition-shadow duration-300 flex-shrink-0">
-                <span className="text-xl font-bold">CF</span>
-              </div>
-              <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">ClassFlow</h1>
+          <div className="text-center space-y-3">
+            <div className="flex justify-center mb-6">
+              <AppLogo onClick={() => onNavigate('dashboard')} />
             </div>
-            <p className="text-base sm:text-lg text-gray-600 font-medium">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 font-medium">
               {selectedRole ? 'Welcome back' : 'Choose your role to get started'}
             </p>
           </div>
@@ -120,7 +118,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                       setSelectedRole(option.role);
                       setError('');
                     }}
-                    className={`group w-full rounded-2xl border-2 transition-all duration-300 p-5 sm:p-6 text-left hover:scale-[1.02] hover:shadow-lg ${option.borderColor} ${option.bgColor} ${option.hoverBg}`}
+                    className={`group w-full rounded-xl border-2 transition-all duration-300 p-4 sm:p-5 text-left hover:scale-[1.01] hover:shadow-md ${option.borderColor} ${option.bgColor} ${option.hoverBg}`}
                   >
                     <div className="flex items-start gap-4 sm:gap-5">
                       <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${option.color} bg-white shadow-sm group-hover:shadow-md transition-shadow duration-300`}>
@@ -138,7 +136,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
             </div>
           ) : (
             /* Login/Register Form */
-            <div className="rounded-2xl border border-gray-200 bg-white shadow-lg p-6 sm:p-8 space-y-6 animate-fade-in">
+            <div className="space-y-6">
               {/* Form Header with Role Selector */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-3">
@@ -149,7 +147,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                       setIsRegister(false);
                       setError('');
                     }}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 transition-colors duration-200 group"
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 group"
                   >
                     <ChevronLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform duration-200" />
                     Change role
@@ -160,10 +158,10 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                 </div>
 
                 <div>
-                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
                     {isRegister ? 'Create your account' : 'Welcome back'}
                   </h2>
-                  <p className="mt-2 text-gray-600">
+                  <p className="text-gray-600 dark:text-gray-300">
                     {isRegister
                       ? `Sign up as a ${selectedRole === 'admin' ? 'admin' : selectedRole} to get started.`
                       : `Sign in to your ${selectedRole === 'admin' ? 'admin' : selectedRole} account.`}
@@ -185,7 +183,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
               <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
                 {isRegister && (
                   <div className="space-y-2">
-                    <label htmlFor="name" className="block text-sm font-semibold text-gray-900">
+                    <label htmlFor="name" className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
                       Full Name
                     </label>
                     <div className="relative">
@@ -196,7 +194,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                         placeholder="John Smith"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="w-full rounded-xl border-2 border-gray-300 bg-white px-4 py-3 pl-12 text-gray-900 placeholder:text-gray-500 outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20"
+                        className="w-full rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-3 pl-12 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20"
                         required
                       />
                     </div>
@@ -204,7 +202,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                 )}
 
                 <div className="space-y-2">
-                  <label htmlFor="email" className="block text-sm font-semibold text-gray-900">
+                  <label htmlFor="email" className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
                     Email Address
                   </label>
                   <div className="relative">
@@ -215,14 +213,14 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                       placeholder="you@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-xl border-2 border-gray-300 bg-white px-4 py-3 pl-12 text-gray-900 placeholder:text-gray-500 outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20"
+                      className="w-full rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-3 pl-12 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20"
                       required
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="password" className="block text-sm font-semibold text-gray-900">
+                  <label htmlFor="password" className="block text-sm font-semibold text-gray-900 dark:text-gray-100">
                     Password
                   </label>
                   <div className="relative">
@@ -233,13 +231,13 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full rounded-xl border-2 border-gray-300 bg-white px-4 py-3 pl-12 text-gray-900 placeholder:text-gray-500 outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20"
+                      className="w-full rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-4 py-3 pl-12 text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20"
                       required
                       minLength={6}
                     />
                   </div>
                   {isRegister && (
-                    <p className="text-xs text-gray-600 font-medium mt-1">Minimum 6 characters</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 font-medium">Minimum 6 characters</p>
                   )}
                 </div>
 
@@ -252,7 +250,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
                   </div>
                 )}
 
-                {/* Submit Button */}
+               {/* Submit Button */}
 <button
   type="submit"
   disabled={loading}
@@ -281,7 +279,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
               </form>
 
               {/* Toggle Register/Login */}
-              <div className="text-center text-sm text-slate-600 pt-2">
+              <div className="text-center text-sm text-slate-600 dark:text-gray-300">
                 {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
                 <button
                   type="button"

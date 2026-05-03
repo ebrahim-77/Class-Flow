@@ -1,4 +1,5 @@
 import { LayoutDashboard, DoorOpen, Calendar, BookOpen, LogOut, Plus, Settings } from 'lucide-react';
+import AppLogo from './AppLogo';
 import type { Page } from '../App';
 import { useAuth, type UserRole } from '../context/AuthContext';
 
@@ -29,7 +30,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     { id: 'manage-rooms', icon: Settings, label: 'Manage Rooms', roles: ['admin'] },
   ];
 
-  const filteredMenuItems = menuItems.filter(item => 
+  const filteredMenuItems = menuItems.filter(item =>
     user && item.roles.includes(user.role)
   );
 
@@ -39,32 +40,14 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   };
 
   return (
-    <div 
-      style={{ 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        bottom: 0, 
-        width: '256px',
-        backgroundColor: '#1E293B',
-        color: 'white',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 50
-      }}
-    >
+    <div className="fixed top-0 left-0 bottom-0 z-50 w-64 flex flex-col bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-colors duration-300">
       {/* Logo */}
-      <div className="p-6 border-b border-slate-700" style={{ flexShrink: 0 }}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#3B82F6] rounded-lg flex items-center justify-center">
-            <div className="w-6 h-6 bg-white rounded"></div>
-          </div>
-          <h2 className="text-white font-semibold text-lg">ClassFlow</h2>
-        </div>
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+        <AppLogo onClick={() => onNavigate('dashboard')} />
       </div>
 
       {/* Navigation */}
-      <nav className="p-4" style={{ flex: 1, overflowY: 'auto' }}>
+      <nav className="p-4 flex-1 overflow-y-auto">
         <ul className="space-y-2">
           {filteredMenuItems.map((item) => {
             const isActive = currentPage === item.id;
@@ -72,15 +55,12 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
               <li key={item.id}>
                 <button
                   onClick={() => onNavigate(item.id)}
-                  className={`
-                    w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-                    ${isActive 
-                      ? 'bg-[#3B82F6] text-white shadow-lg shadow-blue-500/20' 
-                      : 'text-slate-300 hover:bg-slate-700/50'
-                    }
-                  `}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-300 ${isActive
+                    ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+                    }`}
                 >
-                  <item.icon className="w-5 h-5" />
+                  <item.icon className={`w-5 h-5 transition-colors duration-300 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`} />
                   <span>{item.label}</span>
                 </button>
               </li>
@@ -90,12 +70,12 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       </nav>
 
       {/* Bottom Actions */}
-      <div className="p-4 border-t border-slate-700">
-        <button 
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-700/50 transition-all"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors duration-300"
         >
-          <LogOut className="w-5 h-5" />
+          <LogOut className="w-5 h-5 text-gray-500 dark:text-gray-400 transition-colors duration-300" />
           <span>Logout</span>
         </button>
       </div>
